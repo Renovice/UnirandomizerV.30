@@ -20,11 +20,11 @@ public class Gen4EditorFrame extends JFrame {
     private JTabbedPane tabbedPane;
 
     // Editor panels
-    private PersonalSheetPanel personalSheetPanel;
-    private TMsSheetPanel tmsSheetPanel;
-    private LearnsetsSheetPanel learnsetsSheetPanel;
+    private Gen4PersonalSheetPanel personalSheetPanel;
+    private Gen4TMsSheetPanel tmsSheetPanel;
+    private Gen4LearnsetsSheetPanel learnsetsSheetPanel;
     private Gen4EggMovesSheetPanel eggMovesSheetPanel;
-    private EvolutionsSheetPanel evolutionsSheetPanel;
+    private Gen4EvolutionsSheetPanel evolutionsSheetPanel;
     private MovesSheetPanel movesSheetPanel;
     // TODO: Pokemon Sprites editor coming soon
     // private SpritesEditorPanel spritesEditorPanel;
@@ -61,22 +61,22 @@ public class Gen4EditorFrame extends JFrame {
         tabbedPane.setForeground(Color.BLACK); // Black text for readability
 
         // Create Personal Sheet panel
-        personalSheetPanel = new PersonalSheetPanel(romHandler);
+        personalSheetPanel = new Gen4PersonalSheetPanel(romHandler);
         tabbedPane.addTab("Personal Sheet", personalSheetPanel);
 
         // Create TMs Sheet panel
-        tmsSheetPanel = new TMsSheetPanel(romHandler);
+        tmsSheetPanel = new Gen4TMsSheetPanel(romHandler);
         tabbedPane.addTab("TMs Sheet", tmsSheetPanel);
 
         // Create Learnsets Sheet panel
-    learnsetsSheetPanel = new LearnsetsSheetPanel(romHandler);
-    tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
+        learnsetsSheetPanel = new Gen4LearnsetsSheetPanel(romHandler);
+        tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
 
-    eggMovesSheetPanel = new Gen4EggMovesSheetPanel(romHandler);
-    tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
+        eggMovesSheetPanel = new Gen4EggMovesSheetPanel(romHandler);
+        tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
 
         // Create Evolutions Sheet panel
-        evolutionsSheetPanel = new EvolutionsSheetPanel(romHandler);
+        evolutionsSheetPanel = new Gen4EvolutionsSheetPanel(romHandler);
         tabbedPane.addTab("Evolutions Sheet", evolutionsSheetPanel);
 
         // Create Moves Sheet panel

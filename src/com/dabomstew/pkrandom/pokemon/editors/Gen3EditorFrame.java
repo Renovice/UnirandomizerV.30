@@ -20,11 +20,11 @@ public class Gen3EditorFrame extends JFrame {
     private JTabbedPane tabbedPane;
 
     // Editor panels reused from later generations
-    private PersonalSheetPanel personalSheetPanel;
-    private TMsSheetPanel tmsSheetPanel;
-    private LearnsetsSheetPanel learnsetsSheetPanel;
+    private Gen3PersonalSheetPanel personalSheetPanel;
+    private Gen3TMsSheetPanel tmsSheetPanel;
+    private Gen3LearnsetsSheetPanel learnsetsSheetPanel;
     private Gen3EggMovesSheetPanel eggMovesSheetPanel;
-    private EvolutionsSheetPanel evolutionsSheetPanel;
+    private Gen3EvolutionsSheetPanel evolutionsSheetPanel;
     private MovesSheetPanel movesSheetPanel;
 
     public Gen3EditorFrame(RomHandler romHandler) {
@@ -55,19 +55,19 @@ public class Gen3EditorFrame extends JFrame {
         tabbedPane.setBackground(Color.WHITE);
         tabbedPane.setForeground(Color.BLACK);
 
-        personalSheetPanel = new PersonalSheetPanel(romHandler);
+        personalSheetPanel = new Gen3PersonalSheetPanel(romHandler);
         tabbedPane.addTab("Personal Sheet", personalSheetPanel);
 
-        tmsSheetPanel = new TMsSheetPanel(romHandler);
+        tmsSheetPanel = new Gen3TMsSheetPanel(romHandler);
         tabbedPane.addTab("TMs Sheet", tmsSheetPanel);
 
-    learnsetsSheetPanel = new LearnsetsSheetPanel(romHandler);
-    tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
+        learnsetsSheetPanel = new Gen3LearnsetsSheetPanel(romHandler);
+        tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
 
-    eggMovesSheetPanel = new Gen3EggMovesSheetPanel(romHandler);
-    tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
+        eggMovesSheetPanel = new Gen3EggMovesSheetPanel(romHandler);
+        tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
 
-        evolutionsSheetPanel = new EvolutionsSheetPanel(romHandler);
+        evolutionsSheetPanel = new Gen3EvolutionsSheetPanel(romHandler);
         tabbedPane.addTab("Evolutions Sheet", evolutionsSheetPanel);
 
         movesSheetPanel = new MovesSheetPanel(romHandler);

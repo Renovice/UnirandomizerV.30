@@ -4010,10 +4010,30 @@ public class RandomizerGUI {
     }
 
     private void openGen3Editor() {
-        JOptionPane.showMessageDialog(frame,
-                "Gen 3 Editor not yet implemented.",
-                "Coming Soon",
-                JOptionPane.INFORMATION_MESSAGE);
+        if (romHandler == null) {
+            JOptionPane.showMessageDialog(frame,
+                    "No ROM loaded. Please load a Gen 3 ROM first.",
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (!(romHandler instanceof com.dabomstew.pkromio.romhandlers.Gen3RomHandler)) {
+            JOptionPane.showMessageDialog(frame,
+                    "Loaded ROM is not a Generation 3 title.",
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                com.dabomstew.pkrandom.pokemon.editors.Gen3EditorFrame editor = new com.dabomstew.pkrandom.pokemon.editors.Gen3EditorFrame(
+                        romHandler);
+                editor.setVisible(true);
+            }
+        });
     }
 
     private void openGen4Editor() {

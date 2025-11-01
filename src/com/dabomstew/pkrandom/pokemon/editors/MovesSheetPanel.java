@@ -337,42 +337,27 @@ public class MovesSheetPanel extends JPanel {
     }
 
     private void setupMainTableColumns() {
-        // Column widths - adjusted for better display with multi-line headers
-        int[] widths = {
-                240, // Effect
-                140, // Category
-                90, // Power
-                140, // Type
-                90, // Accuracy
-                90, // PP
-                140, // Effect Chance
-                200, // Target
-                90, // Priority
-                140, 140, 140, 140, 140, 140, 140, 160, // move flags
-                110, // Contest Effect
-                110 // Contest Type
-        };
+        for (int viewCol = 0; viewCol < mainTable.getColumnCount(); viewCol++) {
+            int modelCol = viewCol + 2;
+            if (modelCol >= tableModel.getColumnCount()) {
+                continue;
+            }
 
-        for (int i = 0; i < widths.length && i < mainTable.getColumnCount(); i++) {
-            TableColumn column = mainTable.getColumnModel().getColumn(i);
-            column.setPreferredWidth(widths[i]);
-            column.setMinWidth(Math.max(60, widths[i] - 60));
-            column.setMaxWidth(widths[i] + 120);
-            column.setWidth(widths[i]);
+            TableColumn column = mainTable.getColumnModel().getColumn(viewCol);
+            int width = tableModel.getPreferredWidthForColumn(modelCol);
+            column.setPreferredWidth(width);
+            column.setMinWidth(Math.max(60, width - 60));
+            column.setMaxWidth(width + 120);
+            column.setWidth(width);
 
-            int actualCol = i + 2;
-            if (actualCol == 3) {
-                // Category dropdown
+            if (modelCol == tableModel.getCategoryColumnIndex()) {
                 column.setCellEditor(new CategoryComboBoxEditor());
-            } else if (actualCol == 5) {
-                // Type dropdown with colors
+            } else if (modelCol == tableModel.getTypeColumnIndex()) {
                 column.setCellRenderer(new TypeCellRenderer());
                 column.setCellEditor(new TypeComboBoxEditor(romHandler));
-            } else if (actualCol == 9) {
-                // Target dropdown
+            } else if (modelCol == tableModel.getTargetColumnIndex()) {
                 column.setCellEditor(new TargetComboBoxEditor());
-            } else if (actualCol >= 11 && actualCol <= 18) {
-                // Checkboxes for move flags - use stable custom editor
+            } else if (tableModel.isFlagColumn(modelCol)) {
                 column.setCellEditor(new StableCheckBoxEditor());
                 column.setCellRenderer(new CheckBoxRenderer());
             }
@@ -690,28 +675,79 @@ public class MovesSheetPanel extends JPanel {
     private static class MovesDataTableModel extends AbstractTableModel {
         private final List<Move> movesList;
         private final RomHandler romHandler;
+    private final boolean supportsExtendedMoveFlags;
+    private final boolean showContestColumns;
 
-        // Column names with HTML line breaks for better display
-        private final String[] columnNames = {
-                "ID", "Name",
-                "Effect", "Category", "Power", "Type", "Accuracy", "PP",
-                "<html><center>Effect<br>Chance</center></html>",
-                "Target", "Priority",
-                "<html><center>Makes<br>Contact</center></html>",
-                "<html><center>Blocked by<br>Protect</center></html>",
-                "<html><center>Reflected by<br>Magic Coat</center></html>",
-                "<html><center>Affected by<br>Snatch</center></html>",
-                "<html><center>Affected by<br>Mirror Move</center></html>",
-                "<html><center>Triggers<br>King's Rock</center></html>",
-                "<html><center>Hides<br>HP Bars</center></html>",
-                "<html><center>Remove Target<br>Shadow</center></html>",
-                "<html><center>Contest<br>Effect</center></html>",
-                "<html><center>Contest<br>Type</center></html>"
-        };
+        private final List<String> columnNames;
+
+        private final int colId;
+        private final int colName;
+        private final int colEffect;
+        private final int colCategory;
+        private final int colPower;
+        private final int colType;
+        private final int colAccuracy;
+        private final int colPp;
+        private final int colEffectChance;
+        private final int colTarget;
+        private final int colPriority;
+        private final int colMakesContact;
+        private final int colBlockedByProtect;
+        private final int colMagicCoat;
+        private final int colSnatch;
+        private final int colMirrorMove;
+        private final int colKingsRock;
+        private final int colHideHpBars;
+        private final int colRemoveTargetShadow;
+        private final int colContestEffect;
+        private final int colContestType;
 
         public MovesDataTableModel(List<Move> movesList, RomHandler romHandler) {
             this.movesList = movesList;
             this.romHandler = romHandler;
+            boolean isGen3 = romHandler instanceof com.dabomstew.pkromio.romhandlers.Gen3RomHandler;
+            this.supportsExtendedMoveFlags = !isGen3;
+            this.showContestColumns = !isGen3;
+
+            List<String> cols = new ArrayList<>();
+            colId = addColumn(cols, "ID");
+            colName = addColumn(cols, "Name");
+            colEffect = addColumn(cols, "Effect");
+            colCategory = addColumn(cols, "Category");
+            colPower = addColumn(cols, "Power");
+            colType = addColumn(cols, "Type");
+            colAccuracy = addColumn(cols, "Accuracy");
+            colPp = addColumn(cols, "PP");
+            colEffectChance = addColumn(cols, "<html><center>Effect<br>Chance</center></html>");
+            colTarget = addColumn(cols, "Target");
+            colPriority = addColumn(cols, "Priority");
+            colMakesContact = addColumn(cols, "<html><center>Makes<br>Contact</center></html>");
+            colBlockedByProtect = addColumn(cols, "<html><center>Blocked by<br>Protect</center></html>");
+            colMagicCoat = addColumn(cols, "<html><center>Reflected by<br>Magic Coat</center></html>");
+            colSnatch = addColumn(cols, "<html><center>Affected by<br>Snatch</center></html>");
+            colMirrorMove = addColumn(cols, "<html><center>Affected by<br>Mirror Move</center></html>");
+            colKingsRock = addColumn(cols, "<html><center>Triggers<br>King's Rock</center></html>");
+            if (supportsExtendedMoveFlags) {
+                colHideHpBars = addColumn(cols, "<html><center>Hides<br>HP Bars</center></html>");
+                colRemoveTargetShadow = addColumn(cols, "<html><center>Remove Target<br>Shadow</center></html>");
+            } else {
+                colHideHpBars = -1;
+                colRemoveTargetShadow = -1;
+            }
+            if (showContestColumns) {
+                colContestEffect = addColumn(cols, "<html><center>Contest<br>Effect</center></html>");
+                colContestType = addColumn(cols, "<html><center>Contest<br>Type</center></html>");
+            } else {
+                colContestEffect = -1;
+                colContestType = -1;
+            }
+            columnNames = java.util.Collections.unmodifiableList(cols);
+        }
+
+        private int addColumn(List<String> cols, String name) {
+            int idx = cols.size();
+            cols.add(name);
+            return idx;
         }
 
         @Override
@@ -721,180 +757,231 @@ public class MovesSheetPanel extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return columnNames.length;
+            return columnNames.size();
         }
 
         @Override
         public String getColumnName(int column) {
-            return columnNames[column];
+            return columnNames.get(column);
         }
 
         @Override
         public Class<?> getColumnClass(int col) {
-            if (col == 0)
-                return Integer.class; // ID
-            if (col == 1 || col == 3 || col == 5 || col == 9)
-                return String.class; // Name, Category, Type, Target
-            if (col >= 11 && col <= 18)
-                return Boolean.class; // Checkboxes
-            return Integer.class; // Everything else
+            if (col == colId) {
+                return Integer.class;
+            }
+            if (col == colName || col == colCategory || col == colType || col == colTarget) {
+                return String.class;
+            }
+            if (isFlagColumn(col)) {
+                return Boolean.class;
+            }
+            return Integer.class;
         }
 
         @Override
         public boolean isCellEditable(int row, int col) {
-            return col > 0; // Everything except ID is editable
+            return col > colId;
         }
 
         @Override
         public Object getValueAt(int row, int col) {
-            // Handle empty/invalid rows
             if (row >= movesList.size()) {
-                // Return appropriate default based on column type
-                if (col >= 11 && col <= 18)
-                    return false; // Checkboxes
-                if (col == 0)
-                    return 0; // ID
-                return ""; // Strings
+                return defaultValueForColumn(col);
             }
 
             Move move = movesList.get(row);
             if (move == null) {
-                // Return appropriate default based on column type
-                if (col >= 11 && col <= 18)
-                    return false; // Checkboxes
-                if (col == 0)
-                    return 0; // ID
-                return ""; // Strings
+                return defaultValueForColumn(col);
             }
 
-            switch (col) {
-                case 0:
-                    return move.number; // ID
-                case 1:
-                    return move.name != null ? move.name : ""; // Name
-                case 2:
-                    return move.effectIndex; // Effect
-                case 3:
-                    return getCategoryName(move.category); // Category
-                case 4:
-                    return move.power; // Power
-                case 5:
-                    return move.type != null ? move.type.name() : ""; // Type
-                case 6:
-                    return (int) move.hitratio; // Accuracy (convert double to int for display)
-                case 7:
-                    return move.pp; // PP
-                case 8:
-                    return move.secondaryEffectChance; // Effect Chance (already a percentage 0-100)
-                case 9:
-                    return getTargetName(move.target); // Target
-                case 10:
-                    return move.priority; // Priority
-                case 11:
-                    return move.makesContact; // Makes Contact
-                case 12:
-                    return move.isProtectedFromProtect; // Blocked by Protect
-                case 13:
-                    return move.isMagicCoatAffected; // Reflected by Magic Coat
-                case 14:
-                    return move.isSnatchAffected; // Affected by Snatch
-                case 15:
-                    return move.isMirrorMoveAffected; // Affected by Mirror Move
-                case 16:
-                    return move.isFlinchMove; // Triggers King's Rock
-                case 17:
-                    return move.hidesHpBars; // Hides HP Bars
-                case 18:
-                    return move.removesTargetShadow; // Remove Target Shadow
-                case 19:
-                    return move.contestEffect; // Contest Effect
-                case 20:
-                    return move.contestType; // Contest Type
-                default:
-                    // Return appropriate default based on column type
-                    if (col >= 11 && col <= 18)
-                        return false; // Checkboxes
-                    return 0; // Integers
+            if (col == colId) {
+                return move.number;
             }
+            if (col == colName) {
+                return move.name != null ? move.name : "";
+            }
+            if (col == colEffect) {
+                return move.effectIndex;
+            }
+            if (col == colCategory) {
+                return getCategoryName(move.category);
+            }
+            if (col == colPower) {
+                return move.power;
+            }
+            if (col == colType) {
+                return move.type != null ? move.type.name() : "";
+            }
+            if (col == colAccuracy) {
+                return (int) move.hitratio;
+            }
+            if (col == colPp) {
+                return move.pp;
+            }
+            if (col == colEffectChance) {
+                return move.secondaryEffectChance;
+            }
+            if (col == colTarget) {
+                return getTargetName(move.target);
+            }
+            if (col == colPriority) {
+                return move.priority;
+            }
+            if (col == colMakesContact) {
+                return move.makesContact;
+            }
+            if (col == colBlockedByProtect) {
+                return move.isProtectedFromProtect;
+            }
+            if (col == colMagicCoat) {
+                return move.isMagicCoatAffected;
+            }
+            if (col == colSnatch) {
+                return move.isSnatchAffected;
+            }
+            if (col == colMirrorMove) {
+                return move.isMirrorMoveAffected;
+            }
+            if (col == colKingsRock) {
+                return move.isFlinchMove;
+            }
+            if (col == colHideHpBars && supportsExtendedMoveFlags) {
+                return move.hidesHpBars;
+            }
+            if (col == colRemoveTargetShadow && supportsExtendedMoveFlags) {
+                return move.removesTargetShadow;
+            }
+            if (col == colContestEffect && showContestColumns) {
+                return move.contestEffect;
+            }
+            if (col == colContestType && showContestColumns) {
+                return move.contestType;
+            }
+            return defaultValueForColumn(col);
+        }
+
+        private Object defaultValueForColumn(int col) {
+            if (col == colId) {
+                return 0;
+            }
+            if (col == colName || col == colCategory || col == colType || col == colTarget) {
+                return "";
+            }
+            if (isFlagColumn(col)) {
+                return false;
+            }
+            return 0;
         }
 
         @Override
         public void setValueAt(Object val, int row, int col) {
-            if (row >= movesList.size())
+            if (row >= movesList.size()) {
                 return;
+            }
             Move move = movesList.get(row);
-            if (move == null)
+            if (move == null) {
                 return;
+            }
 
             try {
-                switch (col) {
-                    case 1:
-                        move.name = val.toString();
-                        break; // Name
-                    case 2:
-                        move.effectIndex = parseInt(val);
-                        break; // Effect
-                    case 3:
-                        move.category = parseCategoryName(val.toString());
-                        break; // Category
-                    case 4:
-                        move.power = parseBoundedInt(val, 0, 255);
-                        break; // Power
-                    case 5:
-                        if (val != null && !val.toString().isEmpty()) {
-                            move.type = Type.valueOf(val.toString());
-                        }
-                        break; // Type
-                    case 6:
-                        move.hitratio = parseBoundedInt(val, 0, 255);
-                        break; // Accuracy
-                    case 7:
-                        move.pp = parseBoundedInt(val, 0, 255);
-                        break; // PP
-                    case 8:
-                        move.secondaryEffectChance = parseInt(val);
-                        break; // Effect Chance (already a percentage)
-                    case 9:
-                        move.target = parseTargetName(val.toString());
-                        break; // Target
-                    case 10:
-                        move.priority = (byte) parseInt(val);
-                        break; // Priority
-                    case 11:
-                        move.makesContact = parseBoolean(val);
-                        break; // Makes Contact
-                    case 12:
-                        move.isProtectedFromProtect = parseBoolean(val);
-                        break; // Blocked by Protect
-                    case 13:
-                        move.isMagicCoatAffected = parseBoolean(val);
-                        break; // Reflected by Magic Coat
-                    case 14:
-                        move.isSnatchAffected = parseBoolean(val);
-                        break; // Affected by Snatch
-                    case 15:
-                        move.isMirrorMoveAffected = parseBoolean(val);
-                        break; // Affected by Mirror Move
-                    case 16:
-                        move.isFlinchMove = parseBoolean(val);
-                        break; // Triggers King's Rock
-                    case 17:
-                        move.hidesHpBars = parseBoolean(val);
-                        break; // Hides HP Bars
-                    case 18:
-                        move.removesTargetShadow = parseBoolean(val);
-                        break; // Remove Target Shadow
-                    case 19:
-                        move.contestEffect = parseInt(val);
-                        break; // Contest Effect
-                    case 20:
-                        move.contestType = parseInt(val);
-                        break; // Contest Type
+                if (col == colName) {
+                    move.name = val.toString();
+                } else if (col == colEffect) {
+                    move.effectIndex = parseInt(val);
+                } else if (col == colCategory) {
+                    move.category = parseCategoryName(val.toString());
+                } else if (col == colPower) {
+                    move.power = parseBoundedInt(val, 0, 255);
+                } else if (col == colType) {
+                    if (val != null && !val.toString().isEmpty()) {
+                        move.type = Type.valueOf(val.toString());
+                    }
+                } else if (col == colAccuracy) {
+                    move.hitratio = parseBoundedInt(val, 0, 255);
+                } else if (col == colPp) {
+                    move.pp = parseBoundedInt(val, 0, 255);
+                } else if (col == colEffectChance) {
+                    move.secondaryEffectChance = parseInt(val);
+                } else if (col == colTarget) {
+                    move.target = parseTargetName(val.toString());
+                } else if (col == colPriority) {
+                    move.priority = (byte) parseInt(val);
+                } else if (col == colMakesContact) {
+                    move.makesContact = parseBoolean(val);
+                } else if (col == colBlockedByProtect) {
+                    move.isProtectedFromProtect = parseBoolean(val);
+                } else if (col == colMagicCoat) {
+                    move.isMagicCoatAffected = parseBoolean(val);
+                } else if (col == colSnatch) {
+                    move.isSnatchAffected = parseBoolean(val);
+                } else if (col == colMirrorMove) {
+                    move.isMirrorMoveAffected = parseBoolean(val);
+                } else if (col == colKingsRock) {
+                    move.isFlinchMove = parseBoolean(val);
+                } else if (col == colHideHpBars && supportsExtendedMoveFlags) {
+                    move.hidesHpBars = parseBoolean(val);
+                } else if (col == colRemoveTargetShadow && supportsExtendedMoveFlags) {
+                    move.removesTargetShadow = parseBoolean(val);
+                } else if (col == colContestEffect && showContestColumns) {
+                    move.contestEffect = parseInt(val);
+                } else if (col == colContestType && showContestColumns) {
+                    move.contestType = parseInt(val);
                 }
                 fireTableCellUpdated(row, col);
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        public boolean isFlagColumn(int column) {
+            if (column == colMakesContact || column == colBlockedByProtect || column == colMagicCoat
+                    || column == colSnatch || column == colMirrorMove || column == colKingsRock) {
+                return true;
+            }
+            if (!supportsExtendedMoveFlags) {
+                return false;
+            }
+            return column == colHideHpBars || column == colRemoveTargetShadow;
+        }
+
+        public int getPreferredWidthForColumn(int column) {
+            if (column == colEffect) return 240;
+            if (column == colCategory) return 140;
+            if (column == colPower) return 90;
+            if (column == colType) return 140;
+            if (column == colAccuracy) return 90;
+            if (column == colPp) return 90;
+            if (column == colEffectChance) return 140;
+            if (column == colTarget) return 200;
+            if (column == colPriority) return 90;
+            if (column == colMakesContact || column == colBlockedByProtect || column == colMagicCoat
+                    || column == colSnatch || column == colMirrorMove) {
+                return 140;
+            }
+            if (column == colKingsRock) {
+                return 160;
+            }
+            if (column == colHideHpBars || column == colRemoveTargetShadow) {
+                return 140;
+            }
+            if ((column == colContestEffect && showContestColumns)
+                    || (column == colContestType && showContestColumns)) {
+                return 110;
+            }
+            return 120;
+        }
+
+        public int getCategoryColumnIndex() {
+            return colCategory;
+        }
+
+        public int getTypeColumnIndex() {
+            return colType;
+        }
+
+        public int getTargetColumnIndex() {
+            return colTarget;
         }
 
         private int parseInt(Object val) {

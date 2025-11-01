@@ -653,6 +653,11 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
             moves[i].priority = rom[offs + i * 0xC + 7];
             int flags = rom[offs + i * 0xC + 8] & 0xFF;
             moves[i].makesContact = (flags & 1) != 0;
+                moves[i].isProtectedFromProtect = (flags & 0x02) != 0;
+                moves[i].isMagicCoatAffected = (flags & 0x04) != 0;
+                moves[i].isSnatchAffected = (flags & 0x08) != 0;
+                moves[i].isMirrorMoveAffected = (flags & 0x10) != 0;
+                moves[i].isFlinchMove = (flags & 0x20) != 0;
             moves[i].isSoundMove = Gen3Constants.soundMoves.contains(moves[i].number);
 
             if (i == MoveIDs.swift) {
@@ -668,6 +673,7 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
             }
 
             int secondaryEffectChance = rom[offs + i * 0xC + 5] & 0xFF;
+            moves[i].secondaryEffectChance = secondaryEffectChance;
             loadStatChangesFromEffect(moves[i], secondaryEffectChance);
             loadStatusFromEffect(moves[i], secondaryEffectChance);
             loadMiscMoveInfoFromEffect(moves[i], secondaryEffectChance);
@@ -1066,6 +1072,30 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
             writeBytes(offs + i * 0xC, new byte[] { (byte) moves[i].effectIndex,
                     (byte) moves[i].power, Gen3Constants.typeToByte(moves[i].type),
                     (byte) hitratio, (byte) moves[i].pp });
+
+            int originalFlags = rom[offs + i * 0xC + 8] & 0xFF;
+            int flags = 0;
+            if (moves[i].makesContact) {
+                flags |= 0x01;
+            }
+            if (moves[i].isProtectedFromProtect) {
+                flags |= 0x02;
+            }
+            if (moves[i].isMagicCoatAffected) {
+                flags |= 0x04;
+            }
+            if (moves[i].isSnatchAffected) {
+                flags |= 0x08;
+            }
+            if (moves[i].isMirrorMoveAffected) {
+                flags |= 0x10;
+            }
+            if (moves[i].isFlinchMove) {
+                flags |= 0x20;
+            }
+
+            flags |= originalFlags & ~0x3F;
+            writeByte(offs + i * 0xC + 8, (byte) flags);
         }
     }
 
@@ -1088,6 +1118,16 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
             pkmn.setSecondaryType(null);
         }
         pkmn.setCatchRate(rom[offset + Gen3Constants.bsCatchRateOffset] & 0xFF);
+        pkmn.setExpYield(rom[offset + Gen3Constants.bsExpYieldOffset] & 0xFF);
+
+        int evByte1 = rom[offset + Gen3Constants.bsHPEVOffset] & 0xFF;
+        int evByte2 = rom[offset + Gen3Constants.bsHPEVOffset + 1] & 0xFF;
+        pkmn.setHpEvYield(evByte1 & 0b11);
+        pkmn.setAttackEvYield((evByte1 >> 2) & 0b11);
+        pkmn.setDefenseEvYield((evByte1 >> 4) & 0b11);
+        pkmn.setSpeedEvYield((evByte1 >> 6) & 0b11);
+        pkmn.setSpatkEvYield(evByte2 & 0b11);
+        pkmn.setSpdefEvYield((evByte2 >> 2) & 0b11);
         pkmn.setGrowthCurve(ExpCurve.fromByte(rom[offset + Gen3Constants.bsGrowthCurveOffset]));
         // Abilities
         pkmn.setAbility1(rom[offset + Gen3Constants.bsAbility1Offset] & 0xFF);
@@ -1108,6 +1148,16 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         }
 
         pkmn.setGenderRatio(rom[offset + Gen3Constants.bsGenderRatioOffset] & 0xFF);
+        int hatchCycles = rom[offset + Gen3Constants.bsHatchCyclesOffset] & 0xFF;
+        pkmn.setCallRate(hatchCycles);
+        pkmn.setHatchCounter(hatchCycles);
+        pkmn.setBaseHappiness(rom[offset + Gen3Constants.bsBaseHappinessOffset] & 0xFF);
+        pkmn.setEggGroup1(rom[offset + Gen3Constants.bsEggGroup1Offset] & 0xFF);
+        pkmn.setEggGroup2(rom[offset + Gen3Constants.bsEggGroup2Offset] & 0xFF);
+        pkmn.setRunChance(rom[offset + Gen3Constants.bsRunChanceOffset] & 0xFF);
+        int colorFlip = rom[offset + Gen3Constants.bsColorFlipOffset] & 0xFF;
+        pkmn.setColor(colorFlip & 0x7F);
+        pkmn.setFlip((colorFlip & 0x80) != 0);
     }
 
     private void saveBasicPokeStats(Species pkmn, int offset) {
@@ -1122,6 +1172,19 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
                 pkmn.getSecondaryType(false) == null ? pkmn.getPrimaryType(false) : pkmn.getSecondaryType(false)
         ));
         writeByte(offset + Gen3Constants.bsCatchRateOffset, (byte) pkmn.getCatchRate());
+        writeByte(offset + Gen3Constants.bsExpYieldOffset, (byte) pkmn.getExpYield());
+
+        int hpEv = Math.min(pkmn.getHpEvYield(), 3);
+        int atkEv = Math.min(pkmn.getAttackEvYield(), 3);
+        int defEv = Math.min(pkmn.getDefenseEvYield(), 3);
+        int spdEv = Math.min(pkmn.getSpeedEvYield(), 3);
+        int spaEv = Math.min(pkmn.getSpatkEvYield(), 3);
+        int spdefEv = Math.min(pkmn.getSpdefEvYield(), 3);
+
+        int evByte1 = hpEv | (atkEv << 2) | (defEv << 4) | (spdEv << 6);
+        int evByte2 = spaEv | (spdefEv << 2);
+        writeByte(offset + Gen3Constants.bsHPEVOffset, (byte) evByte1);
+        writeByte(offset + Gen3Constants.bsHPEVOffset + 1, (byte) evByte2);
         writeByte(offset + Gen3Constants.bsGrowthCurveOffset, pkmn.getGrowthCurve().toByte());
 
         writeByte(offset + Gen3Constants.bsAbility1Offset, (byte) pkmn.getAbility1());
@@ -1145,6 +1208,13 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         }
 
         writeByte(offset + Gen3Constants.bsGenderRatioOffset, (byte) pkmn.getGenderRatio());
+        writeByte(offset + Gen3Constants.bsHatchCyclesOffset, (byte) pkmn.getCallRate());
+        writeByte(offset + Gen3Constants.bsBaseHappinessOffset, (byte) pkmn.getBaseHappiness());
+        writeByte(offset + Gen3Constants.bsEggGroup1Offset, (byte) pkmn.getEggGroup1());
+        writeByte(offset + Gen3Constants.bsEggGroup2Offset, (byte) pkmn.getEggGroup2());
+        writeByte(offset + Gen3Constants.bsRunChanceOffset, (byte) pkmn.getRunChance());
+        int colorFlip = (pkmn.getColor() & 0x7F) | (pkmn.isFlip() ? 0x80 : 0);
+        writeByte(offset + Gen3Constants.bsColorFlipOffset, (byte) colorFlip);
     }
 
     private void loadPokemonNames() {

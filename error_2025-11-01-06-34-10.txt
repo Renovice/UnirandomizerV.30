@@ -1,0 +1,20 @@
+Randomizer Version: 1.3.1
+Java Version: 1.8.0_462, OpenJDK 64-Bit Server VM
+ROM: Pokemon Fire Red (U) 1.0
+Code: BPRE
+Reported Support Level: Complete
+
+java.lang.ArrayIndexOutOfBoundsException
+	at java.lang.System.arraycopy(Native Method)
+	at com.dabomstew.pkromio.newnds.NARCArchive.readNitroFrames(NARCArchive.java:195)
+	at com.dabomstew.pkromio.newnds.NARCArchive.<init>(NARCArchive.java:46)
+	at com.dabomstew.pkromio.romhandlers.AbstractDSRomHandler.readNARC(AbstractDSRomHandler.java:147)
+	at com.dabomstew.pkromio.romhandlers.Gen4RomHandler.loadedROM(Gen4RomHandler.java:130)
+	at com.dabomstew.pkromio.romhandlers.AbstractDSRomHandler.loadRom(AbstractDSRomHandler.java:66)
+	at com.dabomstew.pkromio.romio.RomOpener.openRomFile(RomOpener.java:119)
+	at com.dabomstew.pkrandom.gui.RandomizerGUI.lambda$openRom$139(RandomizerGUI.java:920)
+	at java.lang.Thread.run(Thread.java:750)
+
+--ROM Diagnostics--
+File name: Pokemon - FireRed Version (USA, Europe).gba
+Original ROM CRC32: DD88761C

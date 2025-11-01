@@ -1,43 +1,47 @@
-# Universal Pokemon Randomizer FVX
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/upr-fvx/universal-pokemon-randomizer-fvx/total)
-![GitHub Release](https://img.shields.io/github/v/release/upr-fvx/universal-pokemon-randomizer-fvx)
-![GitHub Release Date](https://img.shields.io/github/release-date-pre/upr-fvx/universal-pokemon-randomizer-fvx)
+# Uni Randomizer (Working Title)
 
+Uni Randomizer is our all-in-one playground for modernizing the Universal Pokémon Randomizer experience. It keeps the battle-tested randomization logic from Universal Pokémon Randomizer FVX while layering on a suite of rich editors, tooling, and usability upgrades aimed at ROM hackers and challenge-run creators.
 
-[Website](https://upr-fvx.github.io/universal-pokemon-randomizer-fvx/)
+## Highlights
 
-The **Universal Pokemon Randomizer FVX** (**F**ox + **V**oliol + z**X**) is a continuation of the [Universal Pokemon Randomizer](https://github.com/Dabomstew/universal-pokemon-randomizer) by Dabomstew. It was born of a merge of branches by [foxoftheasterisk](https://github.com/foxoftheasterisk/UPR-ZX-closer-to-vanilla) and [voliol](https://github.com/voliol/universal-pokemon-randomizer), both based on Ajarmar's [UPR ZX](https://github.com/Ajarmar/universal-pokemon-randomizer-zx). 
+- **FVX randomizer core** – every shuffle, encounter tweak, and balance option you expect from FVX remains 100% intact for Generations 1–7 (excluding Let’s Go). If you only want a straight randomize-and-go, you can.
+- **Integrated multi-gen editors** – dedicated sheets for Pokémon stats, moves, evolutions, trainers, encounters, items, types, palettes, and more. Gen 3 support now mirrors the Gen 4 editor, and the UI adapts to game-specific data automatically.
+- **Sprite & icon improvements** – bundled mini-icons cover later generations without requiring ROM extraction, and DS/3DS sheets gracefully degrade when in-ROM sprites are unavailable.
+- **Quality-of-life tooling** – CSV import/export on every major table, copy/paste workflows, searchable combo boxes, inline find, and manual-edit logging so you can track custom changes before saving.
+- **ROM data safety nets** – per-sheet backups, reload/restore commands, and guarded editors that block partial writes or invalid combinations before they reach the ROM handler.
 
-Compared to ZX, FVX adds a number of features; from upgrades to Trainer and wild Pokémon randomization, to Pokémon Palette randomization and Custom Player Graphics. 
-For a full list of new features, see [this wiki page](https://upr-fvx.github.io/universal-pokemon-randomizer-fvx/wikipages/new_feature_summary.html).
+## What you can do
 
-True to its ancestry in ZX, it supports all vanilla core series Pokémon games from Generation 1-7 except Let's Go, Pikachu!/Eevee!; in other words, it supports all core series games for the GameBoy, GameBoy Color, GameBoy Advance, Nintendo DS, and Nintendo 3DS.
+1. **Randomize** like FVX: choose your settings, hit randomize, and patch the ROM. The underlying randomization pipeline is unchanged.
+2. **Inspect & fine-tune**: walk through the editors to tweak evolution rules, rebalance stats, force egg moves, tune trainer parties, or handcraft encounter tables.
+3. **Iterate quickly**: export a sheet to CSV for bulk edits, re-import, preview icon/tooltips instantly, and keep a log of manual adjustments via the Manual Edit Registry.
 
-For developers, FVX also has a considerable amount of refactoring and new features, including separate Randomizer classes for each category of randomization, a SpeciesSet class with many helper functions, and automated tests for most features.
+## Supported games
 
-# Feature requests
+All main-series titles from Gen 1 through Gen 7 (Game Boy → Nintendo 3DS) are supported. Gen 6/7 panels include platform-specific conveniences such as version-exclusive evolution rules and weather/terrain triggers.
 
-We gladly take feature requests to know what the user-base wants, but be aware that we are just two people working on this at our own discretion and pace, and will implement them (or not) accordingly. 
-If you want to guarantee your feature makes it in, the only way is to pick up Java and code it yourself. It is fun :)
+## Getting started
 
-# Contributing
+1. Install a Java 8+ runtime (FVX compatibility is maintained).  
+2. Launch the editor (`java -jar UniversalRandomizer.jar`) or use the platform launcher scripts in `launcher/`.  
+3. Open a supported ROM and pick a workflow: randomize immediately or dive into the editors before saving.  
+4. Review the Manual Edit log and perform a final save or randomize pass. Your changes are written when you save the ROM in the main window.
 
-If you want to contribute something to the codebase, we recommended to create an issue for it first (using the`Contribution Idea` template). This way, we can discuss how to accomplish this, and possibly whether it is a good fit for the randomizer. 
+## Key differences from FVX
 
-[This page on the wiki](https://github.com/upr-fvx/universal-pokemon-randomizer-fvx/wiki/Building-Universal-Pokemon-Randomizer-FVX) explains how to set up to build/test locally.
+- Editors now show sprite/icon previews even when the source game lacks in-ROM assets (we bundle the missing icons).
+- Gen 3 data sheets include the full Personal/Moves/Evolution fields, matching later generations feature-for-feature.
+- UI caps, column visibility, and validation rules are aligned with pk3DS where applicable to reduce manual mistakes.
+- Logging hooks record any manual adjustments so you can track deltas alongside randomized changes.
 
-If you are adding a new setting, make sure you follow the new setting checklist in the root folder of the repository.
+## Development notes
 
-### What is a good fit for the randomizer?
+- Randomizer classes under `src/com/dabomstew/pkrandom/randomizers` remain untouched to preserve FVX parity.  
+- Editor utilities live under `src/com/dabomstew/pkrandom/pokemon/editors` and are where most of the new work happens.  
+- `PokemonIconCache` contains the sprite fallback logic (bundled assets live in `src/com/dabomstew/pkrandom/pokemon/icons`).
 
-In general, the UPR should have settings as universal as possible. This means that an idea preferably should work in as many games as possible, and also that it is something that many people will find useful/fun. If the setting is very niche, it will mostly just bloat the GUI. FVX is more laissez-faire than other forks, but still follows this general design guideline.
+We’re actively iterating on the editor experience—expect additional panels, validation passes, and helper scripts in future updates.
 
-If your idea is a change to an existing setting rather than a new setting, it needs to be well motivated.
+## Questions & feedback
 
-# Bug reports
-
-If you encounter something that seems to be a bug, submit an issue using the `Bug Report` issue template.
-
-# Other problems
-
-If you have problems using the randomizer, it could be because of some problem with Java or your operating system. **If you have problems with starting the randomizer specifically, [read this page first before creating an issue.](https://upr-fvx.github.io/universal-pokemon-randomizer-fvx/wikipages/about_java.html)** If that page does not solve your problem, submit an issue using the `Need Help` issue template.
+We’re building this tool to streamline ROM customization workflows. If you spot an issue, need a feature, or want to contribute, open a discussion or issue in this repository. Please include the generation, ROM version, and a description of the steps you took so we can reproduce the problem.

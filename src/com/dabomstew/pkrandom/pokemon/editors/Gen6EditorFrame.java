@@ -1,0 +1,135 @@
+package com.dabomstew.pkrandom.pokemon.editors;
+
+import com.dabomstew.pkrandom.log.ManualEditRegistry;
+import com.dabomstew.pkromio.romhandlers.RomHandler;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Main editor frame for Generation 6 Pokemon games (X, Y, Omega Ruby, Alpha Sapphire).
+ * Provides tabbed editors for Personal Data, TMs, Learnsets, Evolutions, Egg Moves, and Moves.
+ * Follows the same structure as Gen5EditorFrame.
+ */
+public class Gen6EditorFrame extends JFrame {
+
+    private final RomHandler romHandler;
+    private JTabbedPane tabbedPane;
+
+    // Editor panels
+    private Gen6PersonalSheetPanel personalSheetPanel;
+    private Gen6TMsSheetPanel tmsSheetPanel;
+    private Gen6LearnsetsSheetPanel learnsetsSheetPanel;
+    private Gen6EvolutionsSheetPanel evolutionsSheetPanel;
+    private Gen6MovesSheetPanel movesSheetPanel;
+    private Gen6MoveTutorsSheetPanel moveTutorsSheetPanel;
+    private Gen6EggMovesSheetPanel eggMovesSheetPanel;
+
+    public Gen6EditorFrame(RomHandler romHandler) {
+        this.romHandler = romHandler;
+        initializeUI();
+    }
+
+    private void initializeUI() {
+        setTitle("Gen 6 Pokemon Editor - " + romHandler.getROMName());
+        setSize(1200, 800);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        // Add window listener to restore unsaved changes when window closes
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                // Restore any unsaved changes in all panels
+                personalSheetPanel.onWindowClosing();
+                tmsSheetPanel.onWindowClosing();
+                learnsetsSheetPanel.onWindowClosing();
+                eggMovesSheetPanel.onWindowClosing();
+                evolutionsSheetPanel.onWindowClosing();
+                movesSheetPanel.onWindowClosing();
+                moveTutorsSheetPanel.onWindowClosing();
+            }
+        });
+
+        // Create tabbed pane with better styling
+        tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        tabbedPane.setBackground(Color.WHITE);
+        tabbedPane.setForeground(Color.BLACK); // Black text for readability
+
+        // Create Personal Sheet panel
+        personalSheetPanel = new Gen6PersonalSheetPanel(romHandler);
+        tabbedPane.addTab("Personal Sheet", personalSheetPanel);
+
+        // Create TMs Sheet panel
+        tmsSheetPanel = new Gen6TMsSheetPanel(romHandler);
+        tabbedPane.addTab("TMs Sheet", tmsSheetPanel);
+
+        // Create Learnsets Sheet panel
+        learnsetsSheetPanel = new Gen6LearnsetsSheetPanel(romHandler);
+        tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
+
+        // Create Egg Moves panel
+        eggMovesSheetPanel = new Gen6EggMovesSheetPanel(romHandler);
+        tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
+
+        // Create Evolutions Sheet panel
+        evolutionsSheetPanel = new Gen6EvolutionsSheetPanel(romHandler);
+        tabbedPane.addTab("Evolutions Sheet", evolutionsSheetPanel);
+
+        // Create Moves Sheet panel
+        movesSheetPanel = new Gen6MovesSheetPanel(romHandler);
+        tabbedPane.addTab("Moves Sheet", movesSheetPanel);
+
+        // Create Move Tutors panel
+        moveTutorsSheetPanel = new Gen6MoveTutorsSheetPanel(romHandler);
+        tabbedPane.addTab("Move Tutors", moveTutorsSheetPanel);
+
+        add(tabbedPane, BorderLayout.CENTER);
+
+        // Add menu bar
+        createMenuBar();
+    }
+
+    private void createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+
+        JMenu fileMenu = new JMenu("File");
+        JMenuItem saveAllItem = new JMenuItem("Save All");
+        saveAllItem.addActionListener(e -> saveAll());
+        JMenuItem closeItem = new JMenuItem("Close");
+        closeItem.addActionListener(e -> dispose());
+
+        fileMenu.add(saveAllItem);
+        fileMenu.addSeparator();
+        fileMenu.add(closeItem);
+
+        menuBar.add(fileMenu);
+        setJMenuBar(menuBar);
+    }
+
+    private void saveAll() {
+        // Save all panels
+        personalSheetPanel.save();
+        tmsSheetPanel.save();
+        learnsetsSheetPanel.save();
+        eggMovesSheetPanel.save();
+        evolutionsSheetPanel.save();
+        movesSheetPanel.save();
+        moveTutorsSheetPanel.save();
+
+        Map<String, List<String>> manualSections = ManualEditRegistry.getInstance().snapshot();
+        if (!manualSections.isEmpty()) {
+            ManualEditLogDialog.show(this, manualSections, romHandler.getROMName());
+        }
+
+        JOptionPane.showMessageDialog(this,
+                "All changes saved successfully!",
+                "Save Complete",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+}

@@ -1,0 +1,787 @@
+package com.dabomstew.pkrandom.pokemon.editors;
+
+import com.dabomstew.pkrandom.log.ManualEditRegistry;
+import com.dabomstew.pkromio.gamedata.Move;
+import com.dabomstew.pkromio.gamedata.Species;
+import com.dabomstew.pkromio.romhandlers.RomHandler;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.*;
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Gen 6 Move Tutor compatibility editor mirroring the Gen 5 sheet layout.
+ * Displays the ORAS tutor compatibility matrix (including special tutors) per
+ * species.
+ */
+public class Gen6MoveTutorsSheetPanel extends JPanel {
+
+    private final RomHandler romHandler;
+    private final boolean hasMoveTutors;
+    private final List<Species> pokemonList;
+    private final List<Move> moveList;
+    private final List<Integer> tutorMoves;
+    private final Map<Species, boolean[]> tutorCompatibility;
+    private final PokemonIconCache iconCache;
+
+    private JTable frozenTable;
+    private JTable mainTable;
+    private MoveTutorTableModel tableModel;
+    private boolean copyPasteModeEnabled = false;
+    private final EditorUtils.FindState findState = new EditorUtils.FindState();
+    private final Map<Species, boolean[]> compatibilityBackup = new HashMap<>();
+
+    public Gen6MoveTutorsSheetPanel(RomHandler romHandler) {
+        this.romHandler = romHandler;
+        this.hasMoveTutors = romHandler.hasMoveTutors();
+        this.pokemonList = romHandler.getSpeciesInclFormes();
+        this.moveList = romHandler.getMoves();
+
+        if (hasMoveTutors) {
+            this.tutorMoves = romHandler.getMoveTutorMoves();
+            this.tutorCompatibility = romHandler.getMoveTutorCompatibility();
+        } else {
+            this.tutorMoves = new ArrayList<>();
+            this.tutorCompatibility = new HashMap<>();
+        }
+
+        this.iconCache = PokemonIconCache.get(romHandler);
+        initializeUI();
+        if (hasMoveTutors && !tutorMoves.isEmpty()) {
+            createBackup();
+        }
+    }
+
+    private void initializeUI() {
+        setLayout(new BorderLayout());
+        setBackground(Color.WHITE);
+
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            add(createUnavailablePanel(), BorderLayout.CENTER);
+            return;
+        }
+
+        add(createStyledToolbar(), BorderLayout.NORTH);
+        add(createFrozenColumnTable(), BorderLayout.CENTER);
+    }
+
+    private JComponent createUnavailablePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        JLabel label = new JLabel(
+                "<html><center>Move tutors are only available in Pokemon Omega Ruby &amp; Alpha Sapphire.<br>"
+                        + "Load an ORAS ROM to view or edit tutor compatibility.</center></html>",
+                SwingConstants.CENTER);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        panel.add(label, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createStyledToolbar() {
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        toolbar.setBackground(new Color(250, 250, 250));
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 200, 200)),
+                new EmptyBorder(5, 5, 5, 5)));
+
+        JButton saveButton = EditorUtils.createStyledButton("Save", new Color(76, 175, 80));
+        saveButton.addActionListener(e -> save());
+
+        JButton reloadButton = EditorUtils.createStyledButton("Reload", new Color(96, 96, 96));
+        reloadButton.addActionListener(e -> reload());
+
+        JButton exportButton = EditorUtils.createStyledButton("Export CSV", new Color(33, 150, 243));
+        exportButton.addActionListener(e -> exportToCSV());
+
+        JButton importButton = EditorUtils.createStyledButton("Import CSV", new Color(0, 188, 212));
+        importButton.addActionListener(e -> importFromCSV());
+
+        JToggleButton copyPasteButton = EditorUtils.createStyledToggleButton("Copy/Paste Mode", new Color(255, 152, 0));
+        copyPasteButton.addActionListener(e -> toggleCopyPasteMode(copyPasteButton.isSelected()));
+
+        JButton findButton = EditorUtils.createStyledButton("Find", new Color(0, 150, 136));
+        findButton.addActionListener(e -> showFindDialog());
+
+        JButton selectAllButton = EditorUtils.createStyledButton("Select All", new Color(3, 155, 229));
+        selectAllButton.addActionListener(e -> selectAllForPokemon());
+
+        JButton clearAllButton = EditorUtils.createStyledButton("Clear All", new Color(229, 57, 53));
+        clearAllButton.addActionListener(e -> clearAllForPokemon());
+
+        toolbar.add(saveButton);
+        toolbar.add(reloadButton);
+        toolbar.add(exportButton);
+        toolbar.add(importButton);
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(copyPasteButton);
+        toolbar.add(findButton);
+        toolbar.add(Box.createHorizontalStrut(10));
+        toolbar.add(selectAllButton);
+        toolbar.add(clearAllButton);
+        toolbar.add(Box.createHorizontalStrut(10));
+
+        JLabel infoLabel = new JLabel(
+                String.format("Move Tutor Compatibility (Gen 6 ORAS) - %d tutors", tutorMoves.size()));
+        infoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        infoLabel.setForeground(new Color(100, 100, 100));
+        toolbar.add(infoLabel);
+
+        return toolbar;
+    }
+
+    private JPanel createFrozenColumnTable() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+
+        tableModel = new MoveTutorTableModel(pokemonList, moveList, tutorMoves, tutorCompatibility);
+
+        TableModel frozenModel = new AbstractTableModel() {
+            @Override
+            public int getRowCount() {
+                return tableModel.getRowCount();
+            }
+
+            @Override
+            public int getColumnCount() {
+                return 2;
+            }
+
+            @Override
+            public Object getValueAt(int rowIndex, int columnIndex) {
+                return tableModel.getValueAt(rowIndex, columnIndex);
+            }
+
+            @Override
+            public String getColumnName(int column) {
+                return tableModel.getColumnName(column);
+            }
+
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return tableModel.getColumnClass(columnIndex);
+            }
+
+            @Override
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return false;
+            }
+        };
+
+        frozenTable = new JTable(frozenModel);
+        mainTable = new JTable(new AbstractTableModel() {
+            @Override
+            public int getRowCount() {
+                return tableModel.getRowCount();
+            }
+
+            @Override
+            public int getColumnCount() {
+                return tableModel.getColumnCount() - 2;
+            }
+
+            @Override
+            public Object getValueAt(int rowIndex, int columnIndex) {
+                return tableModel.getValueAt(rowIndex, columnIndex + 2);
+            }
+
+            @Override
+            public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+                tableModel.setValueAt(aValue, rowIndex, columnIndex + 2);
+            }
+
+            @Override
+            public String getColumnName(int column) {
+                return tableModel.getColumnName(column + 2);
+            }
+
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return tableModel.getColumnClass(columnIndex + 2);
+            }
+
+            @Override
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                if (copyPasteModeEnabled) {
+                    return false;
+                }
+                return tableModel.isCellEditable(rowIndex, columnIndex + 2);
+            }
+        });
+
+        styleTable(frozenTable, true);
+        styleTable(mainTable, false);
+        setupMainTableColumns();
+
+        TableLayoutDefaults.configureFrozenColumns(frozenTable.getColumnModel(), iconCache.hasIcons());
+        TableLayoutDefaults.applyRowHeight(frozenTable, iconCache.hasIcons());
+        TableLayoutDefaults.applyRowHeight(mainTable, iconCache.hasIcons());
+        TableLayoutDefaults.refreshHeaderPreferredWidth(mainTable);
+
+        frozenTable.setSelectionModel(mainTable.getSelectionModel());
+        frozenTable.getColumnModel().getSelectionModel().setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
+        mainTable.getColumnModel().getSelectionModel().setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
+        EditorUtils.installFrozenColumnSync(frozenTable, mainTable);
+
+        JScrollPane frozenScrollPane = new JScrollPane(frozenTable);
+        frozenScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        frozenScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        frozenScrollPane.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(200, 200, 200)));
+        frozenScrollPane.setColumnHeaderView(frozenTable.getTableHeader());
+        frozenScrollPane.getViewport().setBackground(Color.WHITE);
+
+        JScrollPane mainScrollPane = new JScrollPane(mainTable);
+        mainScrollPane.setColumnHeaderView(mainTable.getTableHeader());
+        mainScrollPane.getViewport().setBackground(Color.WHITE);
+        mainScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        EditorUtils.installHeaderViewportSync(mainScrollPane);
+        mainScrollPane.getVerticalScrollBar()
+                .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+
+        JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.add(frozenScrollPane, BorderLayout.CENTER);
+        int frozenWidth = TableLayoutDefaults.frozenPanelWidth(iconCache.hasIcons());
+        leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
+        leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+
+        panel.add(leftPanel, BorderLayout.WEST);
+        panel.add(mainScrollPane, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void styleTable(JTable table, boolean isFrozen) {
+        if (isFrozen) {
+            TableLayoutDefaults.applySheetTableStyle(table, true, 1);
+            table.setColumnSelectionAllowed(false);
+            TutorCellRenderer frozenRenderer = new TutorCellRenderer(true);
+            table.setDefaultRenderer(Object.class, frozenRenderer);
+            table.setDefaultRenderer(String.class, frozenRenderer);
+            table.setDefaultRenderer(Integer.class, frozenRenderer);
+            if (table.getColumnModel().getColumnCount() > 1) {
+                table.getColumnModel().getColumn(1).setCellRenderer(new FrozenNameRenderer());
+            }
+        } else {
+            TableLayoutDefaults.applySheetTableStyle(table, false);
+            table.setDefaultEditor(Boolean.class, new CheckboxEditor());
+            CheckboxRenderer checkboxRenderer = new CheckboxRenderer();
+            table.setDefaultRenderer(Boolean.class, checkboxRenderer);
+            TutorCellRenderer mainRenderer = new TutorCellRenderer(false);
+            table.setDefaultRenderer(Object.class, mainRenderer);
+            table.setDefaultRenderer(String.class, mainRenderer);
+            table.setDefaultRenderer(Integer.class, mainRenderer);
+        }
+    }
+
+    private void setupMainTableColumns() {
+        TableColumnModel columnModel = mainTable.getColumnModel();
+        for (int i = 0; i < columnModel.getColumnCount(); i++) {
+            TableColumn column = columnModel.getColumn(i);
+            column.setPreferredWidth(200);
+        }
+    }
+
+    private void createBackup() {
+        compatibilityBackup.clear();
+        for (Map.Entry<Species, boolean[]> entry : tutorCompatibility.entrySet()) {
+            boolean[] copy = new boolean[entry.getValue().length];
+            System.arraycopy(entry.getValue(), 0, copy, 0, entry.getValue().length);
+            compatibilityBackup.put(entry.getKey(), copy);
+        }
+    }
+
+    private void restoreFromBackup() {
+        for (Map.Entry<Species, boolean[]> entry : compatibilityBackup.entrySet()) {
+            boolean[] destination = tutorCompatibility.computeIfAbsent(entry.getKey(),
+                    k -> new boolean[entry.getValue().length]);
+            if (destination.length != entry.getValue().length) {
+                destination = new boolean[entry.getValue().length];
+                tutorCompatibility.put(entry.getKey(), destination);
+            }
+            System.arraycopy(entry.getValue(), 0, destination, 0, entry.getValue().length);
+        }
+        if (tableModel != null) {
+            tableModel.fireTableDataChanged();
+        }
+        if (frozenTable != null) {
+            frozenTable.repaint();
+        }
+        if (mainTable != null) {
+            mainTable.repaint();
+        }
+    }
+
+    private void stopEditing() {
+        if (mainTable != null && mainTable.isEditing()) {
+            mainTable.getCellEditor().stopCellEditing();
+        }
+        if (frozenTable != null && frozenTable.isEditing()) {
+            frozenTable.getCellEditor().stopCellEditing();
+        }
+    }
+
+    public void save() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        stopEditing();
+
+        List<String> changes = collectTutorChangesForLog();
+        if (!changes.isEmpty()) {
+            ManualEditRegistry.getInstance().addEntries("Gen 6 Move Tutor Compatibility", changes);
+        }
+
+        romHandler.setMoveTutorCompatibility(tutorCompatibility);
+
+        JOptionPane.showMessageDialog(this,
+                "- Move tutor compatibility updated successfully!\n\nChanges will be saved when you save/randomize the ROM.",
+                "Save Complete",
+                JOptionPane.INFORMATION_MESSAGE);
+        commitChanges();
+    }
+
+    private void commitChanges() {
+        createBackup();
+    }
+
+    public void onWindowClosing() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        stopEditing();
+        restoreFromBackup();
+    }
+
+    private void reload() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        int result = JOptionPane.showConfirmDialog(this,
+                "Reload move tutor data from ROM?\nAny unsaved changes will be lost.",
+                "Confirm Reload",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (result == JOptionPane.YES_OPTION) {
+            stopEditing();
+            restoreFromBackup();
+        }
+    }
+
+    private void exportToCSV() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        stopEditing();
+        EditorUtils.exportTableToCSV(this, tableModel, "Move Tutors");
+    }
+
+    private void importFromCSV() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        if (copyPasteModeEnabled) {
+            JOptionPane.showMessageDialog(this,
+                    "Disable Copy/Paste Mode before importing.",
+                    "Import CSV",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        stopEditing();
+
+        EditorUtils.CsvData csvData = EditorUtils.chooseCsvFile(this, "Move Tutors");
+        if (csvData == null) {
+            return;
+        }
+
+        try {
+            int applied = EditorUtils.applyCsvDataToTable(csvData.getRows(), tableModel, true);
+            tableModel.fireTableDataChanged();
+            frozenTable.repaint();
+            mainTable.repaint();
+            JOptionPane.showMessageDialog(this,
+                    String.format("Imported %d rows from %s.", applied, csvData.getFile().getName()),
+                    "Import Complete",
+                    JOptionPane.INFORMATION_MESSAGE);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this,
+                    ex.getMessage(),
+                    "Import Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void selectAllForPokemon() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        if (copyPasteModeEnabled) {
+            JOptionPane.showMessageDialog(this,
+                    "Copy/Paste Mode is enabled.\nDisable it to make changes.",
+                    "Read-Only Mode",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int selectedRow = mainTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select a Pokémon row first.",
+                    "No Selection",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        for (int col = 0; col < mainTable.getColumnCount(); col++) {
+            tableModel.setValueAt(true, selectedRow, col + 2);
+        }
+        tableModel.fireTableRowsUpdated(selectedRow, selectedRow);
+        mainTable.repaint();
+        frozenTable.repaint();
+    }
+
+    private void clearAllForPokemon() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        if (copyPasteModeEnabled) {
+            JOptionPane.showMessageDialog(this,
+                    "Copy/Paste Mode is enabled.\nDisable it to make changes.",
+                    "Read-Only Mode",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int selectedRow = mainTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select a Pokémon row first.",
+                    "No Selection",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        for (int col = 0; col < mainTable.getColumnCount(); col++) {
+            tableModel.setValueAt(false, selectedRow, col + 2);
+        }
+        tableModel.fireTableRowsUpdated(selectedRow, selectedRow);
+        mainTable.repaint();
+        frozenTable.repaint();
+    }
+
+    private void toggleCopyPasteMode(boolean enabled) {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            copyPasteModeEnabled = false;
+            return;
+        }
+        copyPasteModeEnabled = enabled;
+        if (enabled) {
+            stopEditing();
+            JOptionPane.showMessageDialog(this,
+                    "Copy/Paste Mode ON\n\n- Tables are now read-only\n- Select cells and press Ctrl+C to copy compatibility data\n- Toggle off to resume editing",
+                    "Copy/Paste Mode",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+        frozenTable.repaint();
+        mainTable.repaint();
+    }
+
+    private void showFindDialog() {
+        if (!hasMoveTutors || tutorMoves.isEmpty()) {
+            return;
+        }
+        stopEditing();
+        EditorUtils.FindOptions options = EditorUtils.showFindDialog(this, findState.getLastOptions());
+        if (options == null) {
+            return;
+        }
+        EditorUtils.performFind(this, frozenTable, mainTable, tableModel, 2, findState, options);
+    }
+
+    private List<String> collectTutorChangesForLog() {
+        List<String> changes = new ArrayList<>();
+        int tutorCount = tutorMoves.size();
+
+        for (Species species : pokemonList) {
+            if (species == null) {
+                continue;
+            }
+            boolean[] before = compatibilityBackup.get(species);
+            boolean[] after = tutorCompatibility.get(species);
+
+            if (before == null && after == null) {
+                continue;
+            }
+
+            boolean[] beforeFlags = before != null ? before : new boolean[tutorCount + 1];
+            boolean[] afterFlags = after != null ? after : new boolean[tutorCount + 1];
+
+            List<String> additions = new ArrayList<>();
+            List<String> removals = new ArrayList<>();
+
+            for (int idx = 0; idx < tutorCount; idx++) {
+                boolean beforeVal = idx + 1 < beforeFlags.length && beforeFlags[idx + 1];
+                boolean afterVal = idx + 1 < afterFlags.length && afterFlags[idx + 1];
+                if (beforeVal == afterVal) {
+                    continue;
+                }
+                String label = formatTutorLabel(idx);
+                if (afterVal) {
+                    additions.add(label);
+                } else {
+                    removals.add(label);
+                }
+            }
+
+            if (!additions.isEmpty() || !removals.isEmpty()) {
+                List<String> segments = new ArrayList<>();
+                if (!additions.isEmpty()) {
+                    segments.add("Added " + String.join(", ", additions));
+                }
+                if (!removals.isEmpty()) {
+                    segments.add("Removed " + String.join(", ", removals));
+                }
+                changes.add(String.format("%s: %s",
+                        EditorUtils.speciesNameWithSuffix(species), String.join("; ", segments)));
+            }
+        }
+
+        return changes;
+    }
+
+    private String formatTutorLabel(int index) {
+        int moveId = index < tutorMoves.size() ? tutorMoves.get(index) : -1;
+        String moveName = "Move #" + moveId;
+        if (moveId >= 0 && moveId < moveList.size()) {
+            Move move = moveList.get(moveId);
+            if (move != null && move.name != null && !move.name.isEmpty()) {
+                moveName = move.name;
+            }
+        }
+        return String.format("Tutor %02d (%s)", index + 1, moveName);
+    }
+
+    private static class CheckboxRenderer extends JCheckBox implements TableCellRenderer {
+        CheckboxRenderer() {
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setOpaque(true);
+            setBorderPainted(false);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
+                int row, int column) {
+            setSelected(value != null && (Boolean) value);
+            Color base = row % 2 == 0 ? TableLayoutDefaults.EVEN_ROW_COLOR : TableLayoutDefaults.ODD_ROW_COLOR;
+            if (isSelected) {
+                setBackground(table.getSelectionBackground());
+                setForeground(table.getSelectionForeground());
+            } else {
+                setBackground(base);
+                setForeground(Color.BLACK);
+            }
+            return this;
+        }
+    }
+
+    private static class CheckboxEditor extends DefaultCellEditor {
+        CheckboxEditor() {
+            super(new JCheckBox());
+            JCheckBox checkBox = (JCheckBox) getComponent();
+            checkBox.setHorizontalAlignment(SwingConstants.CENTER);
+            checkBox.setOpaque(true);
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row,
+                int column) {
+            JCheckBox checkBox = (JCheckBox) super.getTableCellEditorComponent(table, value, isSelected, row, column);
+            if (value instanceof Boolean) {
+                checkBox.setSelected((Boolean) value);
+            }
+            Color base = row % 2 == 0 ? TableLayoutDefaults.EVEN_ROW_COLOR : TableLayoutDefaults.ODD_ROW_COLOR;
+            if (isSelected) {
+                checkBox.setBackground(table.getSelectionBackground());
+                checkBox.setForeground(table.getSelectionForeground());
+            } else {
+                checkBox.setBackground(base);
+                checkBox.setForeground(Color.BLACK);
+            }
+            return checkBox;
+        }
+    }
+
+    private class FrozenNameRenderer extends TutorCellRenderer {
+        FrozenNameRenderer() {
+            super(true);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
+                int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            Species species = resolveSpecies(table, row);
+            if (iconCache.hasIcons() && species != null) {
+                setIcon(iconCache.getIcon(species));
+                setText(" " + EditorUtils.speciesNameWithSuffix(species));
+            } else {
+                setIcon(null);
+                setText(value == null ? "" : value.toString());
+            }
+            return c;
+        }
+
+        private Species resolveSpecies(JTable table, int viewRow) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            int index = modelRow + 1;
+            if (index >= 0 && index < pokemonList.size()) {
+                return pokemonList.get(index);
+            }
+            return null;
+        }
+    }
+
+    private class TutorCellRenderer extends TableLayoutDefaults.StripedCellRenderer {
+        private final boolean frozen;
+
+        TutorCellRenderer(boolean frozen) {
+            super(frozen, frozen ? new int[] { 1 } : new int[0]);
+            this.frozen = frozen;
+            if (frozen) {
+                setIconTextGap(10);
+            }
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
+                int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (frozen && column == 0) {
+                setHorizontalAlignment(SwingConstants.CENTER);
+            } else if (frozen && column == 1) {
+                setHorizontalAlignment(SwingConstants.LEFT);
+            }
+            if (!frozen || column != 1) {
+                setIcon(null);
+            }
+            setText(value == null ? "" : value.toString());
+            return c;
+        }
+    }
+
+    private static class MoveTutorTableModel extends AbstractTableModel {
+        private final List<Species> pokemonList;
+        private final List<Move> moveList;
+        private final List<Integer> tutorMoves;
+        private final Map<Species, boolean[]> tutorCompatibility;
+        private final String[] columnNames;
+
+        MoveTutorTableModel(List<Species> pokemonList, List<Move> moveList,
+                List<Integer> tutorMoves, Map<Species, boolean[]> tutorCompatibility) {
+            this.pokemonList = pokemonList;
+            this.moveList = moveList;
+            this.tutorMoves = tutorMoves;
+            this.tutorCompatibility = tutorCompatibility;
+
+            columnNames = new String[2 + tutorMoves.size()];
+            columnNames[0] = "ID";
+            columnNames[1] = "Name";
+
+            for (int i = 0; i < tutorMoves.size(); i++) {
+                int moveId = tutorMoves.get(i);
+                String moveName = formatMoveName(moveId);
+                columnNames[2 + i] = String.format("<html>Tutor %02d<br>%s</html>", i + 1, escapeHtml(moveName));
+            }
+        }
+
+        @Override
+        public int getRowCount() {
+            return pokemonList.size() - 1;
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columnNames.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columnNames[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return columnIndex <= 1 ? String.class : Boolean.class;
+        }
+
+        @Override
+        public boolean isCellEditable(int rowIndex, int columnIndex) {
+            return columnIndex > 1;
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            Species species = pokemonList.get(rowIndex + 1);
+            if (species == null) {
+                return columnIndex <= 1 ? "" : Boolean.FALSE;
+            }
+
+            if (columnIndex == 0) {
+                return species.getNumber();
+            }
+            if (columnIndex == 1) {
+                return EditorUtils.speciesNameWithSuffix(species);
+            }
+
+            boolean[] flags = tutorCompatibility.get(species);
+            int tutorIndex = columnIndex - 1;
+            if (flags != null && tutorIndex < flags.length) {
+                return flags[tutorIndex];
+            }
+            return Boolean.FALSE;
+        }
+
+        @Override
+        public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+            if (columnIndex <= 1) {
+                return;
+            }
+            Species species = pokemonList.get(rowIndex + 1);
+            if (species == null) {
+                return;
+            }
+            boolean[] flags = tutorCompatibility.computeIfAbsent(species, k -> new boolean[tutorMoves.size() + 1]);
+            int tutorIndex = columnIndex - 1;
+            if (tutorIndex >= flags.length) {
+                boolean[] expanded = new boolean[tutorMoves.size() + 1];
+                System.arraycopy(flags, 0, expanded, 0, Math.min(flags.length, expanded.length));
+                flags = expanded;
+                tutorCompatibility.put(species, flags);
+            }
+            flags[tutorIndex] = Boolean.TRUE.equals(aValue);
+        }
+
+        private String formatMoveName(int moveId) {
+            if (moveId >= 0 && moveId < moveList.size()) {
+                Move move = moveList.get(moveId);
+                if (move != null && move.name != null && !move.name.isEmpty()) {
+                    return move.name;
+                }
+            }
+            return "Move #" + moveId;
+        }
+
+        private String escapeHtml(String value) {
+            if (value == null) {
+                return "";
+            }
+            return value.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;");
+        }
+    }
+}

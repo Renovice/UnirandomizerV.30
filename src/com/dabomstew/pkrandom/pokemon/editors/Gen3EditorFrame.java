@@ -23,6 +23,7 @@ public class Gen3EditorFrame extends JFrame {
     private PersonalSheetPanel personalSheetPanel;
     private TMsSheetPanel tmsSheetPanel;
     private LearnsetsSheetPanel learnsetsSheetPanel;
+    private Gen3EggMovesSheetPanel eggMovesSheetPanel;
     private EvolutionsSheetPanel evolutionsSheetPanel;
     private MovesSheetPanel movesSheetPanel;
 
@@ -43,6 +44,7 @@ public class Gen3EditorFrame extends JFrame {
                 personalSheetPanel.onWindowClosing();
                 tmsSheetPanel.onWindowClosing();
                 learnsetsSheetPanel.onWindowClosing();
+                eggMovesSheetPanel.onWindowClosing();
                 evolutionsSheetPanel.onWindowClosing();
                 movesSheetPanel.onWindowClosing();
             }
@@ -59,8 +61,11 @@ public class Gen3EditorFrame extends JFrame {
         tmsSheetPanel = new TMsSheetPanel(romHandler);
         tabbedPane.addTab("TMs Sheet", tmsSheetPanel);
 
-        learnsetsSheetPanel = new LearnsetsSheetPanel(romHandler);
-        tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
+    learnsetsSheetPanel = new LearnsetsSheetPanel(romHandler);
+    tabbedPane.addTab("Learnsets Sheet", learnsetsSheetPanel);
+
+    eggMovesSheetPanel = new Gen3EggMovesSheetPanel(romHandler);
+    tabbedPane.addTab("Egg Moves", eggMovesSheetPanel);
 
         evolutionsSheetPanel = new EvolutionsSheetPanel(romHandler);
         tabbedPane.addTab("Evolutions Sheet", evolutionsSheetPanel);
@@ -93,7 +98,8 @@ public class Gen3EditorFrame extends JFrame {
     private void saveAll() {
         personalSheetPanel.save();
         tmsSheetPanel.save();
-        learnsetsSheetPanel.save();
+    learnsetsSheetPanel.save();
+    eggMovesSheetPanel.save();
         evolutionsSheetPanel.save();
         movesSheetPanel.save();
 

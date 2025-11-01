@@ -1948,10 +1948,20 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 if (formeReference != pkmn.getNumber()) {
                     altFormeEggMoveFiles.put(pkmn, formeReference);
                 }
+
                 List<Integer> moves = eggMoves.get(pkmn.getNumber());
-                for (int j = 0; j < moves.size(); j++) {
-                    writeWord(movedata, 4 + (j * 2), moves.get(j));
+                if (moves == null) {
+                    moves = Collections.emptyList();
                 }
+                int moveCount = moves.size();
+
+                byte[] updated = new byte[4 + (moveCount * 2)];
+                writeWord(updated, 0, formeReference);
+                writeWord(updated, 2, moveCount);
+                for (int j = 0; j < moveCount; j++) {
+                    writeWord(updated, 4 + (j * 2), moves.get(j));
+                }
+                eggMovesGarc.setFile(i, updated);
             }
             Iterator<Species> iter = altFormeEggMoveFiles.keySet().iterator();
             while (iter.hasNext()) {
@@ -1961,10 +1971,23 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 Species altForme = getAltFormeOfSpecies(originalForme, formeNumber);
                 while (!originalForme.equals(altForme)) {
                     byte[] movedata = eggMovesGarc.files.get(fileNumber).get(0);
+                    int formeReference = readWord(movedata, 0);
                     List<Integer> moves = eggMoves.get(altForme.getNumber());
-                    for (int j = 0; j < moves.size(); j++) {
-                        writeWord(movedata, 4 + (j * 2), moves.get(j));
+                    if (moves == null) {
+                        moves = eggMoves.get(originalForme.getNumber());
+                        if (moves == null) {
+                            moves = Collections.emptyList();
+                        }
                     }
+                    int moveCount = moves.size();
+
+                    byte[] updated = new byte[4 + (moveCount * 2)];
+                    writeWord(updated, 0, formeReference);
+                    writeWord(updated, 2, moveCount);
+                    for (int j = 0; j < moveCount; j++) {
+                        writeWord(updated, 4 + (j * 2), moves.get(j));
+                    }
+                    eggMovesGarc.setFile(fileNumber, updated);
                     formeNumber++;
                     fileNumber++;
                     altForme = getAltFormeOfSpecies(originalForme, formeNumber);
@@ -2771,6 +2794,8 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                     case LEVEL_GAME_OTHER_NIGHT:
                         markImprovedEvolutions(sp);
                         evo.setType(EvolutionType.LEVEL_NIGHT);
+                        break;
+                    default:
                         break;
                 }
 

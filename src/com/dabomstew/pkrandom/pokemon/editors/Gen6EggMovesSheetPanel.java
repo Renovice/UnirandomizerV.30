@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,7 +28,9 @@ import java.util.stream.Collectors;
  */
 public class Gen6EggMovesSheetPanel extends JPanel {
 
-    private static final int MAX_EGG_MOVES = 64;
+    // pk3DS caps its Gen6/7 egg-move UI at 30 entries; mirror that ceiling so the
+    // sheet behaves the same while still rendering any pre-existing excess slots.
+    private static final int MAX_EGG_MOVES = 30;
 
     private final RomHandler romHandler;
     private final List<Species> pokemonList;

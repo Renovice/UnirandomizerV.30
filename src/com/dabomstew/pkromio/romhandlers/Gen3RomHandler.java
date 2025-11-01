@@ -23,6 +23,7 @@ package com.dabomstew.pkromio.romhandlers;
 /*----------------------------------------------------------------------------*/
 
 import com.dabomstew.pkromio.FileFunctions;
+import com.dabomstew.pkromio.GFXFunctions;
 import com.dabomstew.pkromio.MiscTweak;
 import com.dabomstew.pkromio.RomFunctions;
 import com.dabomstew.pkromio.constants.*;
@@ -4794,15 +4795,19 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
                 convPalette[0] = 0;
             }
 
-            // Make image, 4bpp
-            GBAImage bim = new GBAImage.Builder(8, 8, palette, data).build();
+            GBAImage decoded = new GBAImage.Builder(8, 8, palette, data).build();
             if (includePalette) {
                 for (int i = 0; i < palette.size(); i++) {
-                    bim.setColor(i, 0, i);
+                    decoded.setColor(i, 0, i);
                 }
             }
 
-            return bim;
+            BufferedImage result = new BufferedImage(decoded.getWidth(), decoded.getHeight(),
+                    BufferedImage.TYPE_BYTE_INDEXED,
+                    GFXFunctions.indexColorModelFromPalette(convPalette, 4));
+            int[] pixels = decoded.getRaster().getPixels(0, 0, decoded.getWidth(), decoded.getHeight(), (int[]) null);
+            result.getRaster().setPixels(0, 0, decoded.getWidth(), decoded.getHeight(), pixels);
+            return result;
         }
     }
 

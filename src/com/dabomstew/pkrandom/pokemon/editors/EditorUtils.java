@@ -12,6 +12,8 @@ import javax.swing.ListSelectionModel;
 import javax.swing.ComboBoxModel;
 import javax.swing.text.JTextComponent;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.AWTEventListener;
@@ -908,6 +910,92 @@ public class EditorUtils {
                 setFullRowSelectionActive(frozenTable, false);
             }
         });
+    }
+
+    /**
+     * Keeps two scroll panes (typically frozen + main tables) vertically aligned.
+     * Shares the vertical scroll bar model and mirrors viewport Y positions so the
+     * frozen columns stay in sync even at scroll extremes.
+     */
+    public static void linkVerticalScrollBars(JScrollPane frozenScrollPane, JScrollPane mainScrollPane) {
+        if (frozenScrollPane == null || mainScrollPane == null) {
+            return;
+        }
+        JScrollBar mainVertical = mainScrollPane.getVerticalScrollBar();
+        JScrollBar frozenVertical = frozenScrollPane.getVerticalScrollBar();
+        if (mainVertical == null || frozenVertical == null) {
+            return;
+        }
+        frozenVertical.setModel(mainVertical.getModel());
+
+        JViewport mainViewport = mainScrollPane.getViewport();
+        JViewport frozenViewport = frozenScrollPane.getViewport();
+        if (mainViewport == null || frozenViewport == null) {
+            return;
+        }
+
+        final boolean[] updating = new boolean[1];
+        Runnable syncFromMain = () -> {
+            if (updating[0]) {
+                return;
+            }
+            Point mainPos = mainViewport.getViewPosition();
+            Point frozenPos = frozenViewport.getViewPosition();
+            if (frozenPos.y != mainPos.y) {
+                updating[0] = true;
+                frozenViewport.setViewPosition(new Point(frozenPos.x, mainPos.y));
+                updating[0] = false;
+            }
+        };
+
+        mainViewport.addChangeListener(e -> syncFromMain.run());
+        frozenViewport.addChangeListener(e -> {
+            if (updating[0]) {
+                return;
+            }
+            Point frozenPos = frozenViewport.getViewPosition();
+            Point mainPos = mainViewport.getViewPosition();
+            if (mainPos.y != frozenPos.y) {
+                updating[0] = true;
+                mainViewport.setViewPosition(new Point(mainPos.x, frozenPos.y));
+                updating[0] = false;
+            }
+        });
+        syncFromMain.run();
+    }
+
+    /**
+     * Adds a spacer beneath the frozen table so the horizontal scrollbar visually spans the full width
+     * when it appears.
+     */
+    public static void addHorizontalScrollbarSpacer(JPanel frozenContainer, JScrollPane mainScrollPane) {
+        if (frozenContainer == null || mainScrollPane == null) {
+            return;
+        }
+        JScrollBar horizontalBar = mainScrollPane.getHorizontalScrollBar();
+        if (horizontalBar == null) {
+            return;
+        }
+        JPanel spacer = new JPanel();
+        spacer.setOpaque(true);
+        spacer.setBackground(horizontalBar.getBackground());
+        int barHeight = horizontalBar.getPreferredSize().height;
+        spacer.setPreferredSize(new Dimension(0, barHeight));
+        spacer.setVisible(horizontalBar.isVisible());
+
+        horizontalBar.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                spacer.setVisible(true);
+            }
+
+            @Override
+            public void componentHidden(ComponentEvent e) {
+                spacer.setVisible(false);
+            }
+        });
+
+        frozenContainer.add(spacer, BorderLayout.SOUTH);
     }
 
     public static void runWithFrozenSyncSuppressed(JTable mainTable, Runnable action) {

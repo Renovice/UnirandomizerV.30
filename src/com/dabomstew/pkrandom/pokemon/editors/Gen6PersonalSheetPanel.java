@@ -321,8 +321,7 @@ public class Gen6PersonalSheetPanel extends JPanel {
         EditorUtils.installHeaderViewportSync(mainScrollPane);
 
         // Sync scrolling
-        mainScrollPane.getVerticalScrollBar()
-                .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         // Layout
         JPanel leftPanel = new JPanel(new BorderLayout());
@@ -330,6 +329,7 @@ public class Gen6PersonalSheetPanel extends JPanel {
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(iconCache.hasIcons());
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);
@@ -388,6 +388,7 @@ public class Gen6PersonalSheetPanel extends JPanel {
             case PokemonDataTableModel.COL_SPEED:
             case PokemonDataTableModel.COL_SP_ATK:
             case PokemonDataTableModel.COL_SP_DEF:
+            case PokemonDataTableModel.COL_BST:
                 return 65;
             case PokemonDataTableModel.COL_TYPE_1:
             case PokemonDataTableModel.COL_TYPE_2:
@@ -808,38 +809,39 @@ public class Gen6PersonalSheetPanel extends JPanel {
         static final int COL_SPEED = 5;
         static final int COL_SP_ATK = 6;
         static final int COL_SP_DEF = 7;
-        static final int COL_TYPE_1 = 8;
-        static final int COL_TYPE_2 = 9;
-        static final int COL_CATCH_RATE = 10;
-        static final int COL_EXP_YIELD = 11;
-        static final int COL_HP_EV = 12;
-        static final int COL_ATK_EV = 13;
-        static final int COL_DEF_EV = 14;
-        static final int COL_SPEED_EV = 15;
-        static final int COL_SP_ATK_EV = 16;
-        static final int COL_SP_DEF_EV = 17;
-        static final int COL_COMMON_ITEM = 18;
-        static final int COL_RARE_ITEM = 19;
-        static final int COL_GUARANTEED_ITEM = 20;
-        static final int COL_VERY_RARE_ITEM = 21;
-        static final int COL_GENDER_RATIO = 22;
-        static final int COL_HATCH_COUNTER = 23;
-        static final int COL_BASE_HAPPINESS = 24;
-        static final int COL_GROWTH_RATE = 25;
-        static final int COL_EGG_GROUP_1 = 26;
-        static final int COL_EGG_GROUP_2 = 27;
-        static final int COL_ABILITY_1 = 28;
-        static final int COL_ABILITY_2 = 29;
-        static final int COL_ABILITY_3 = 30;
-        static final int COL_RUN_CHANCE = 31;
-        static final int COL_HEIGHT = 32;
-        static final int COL_WEIGHT = 33;
-        static final int COL_COLOR = 34;
-        static final int COL_FLIP = 35;
+        static final int COL_BST = 8;
+        static final int COL_TYPE_1 = 9;
+        static final int COL_TYPE_2 = 10;
+        static final int COL_CATCH_RATE = 11;
+        static final int COL_EXP_YIELD = 12;
+        static final int COL_HP_EV = 13;
+        static final int COL_ATK_EV = 14;
+        static final int COL_DEF_EV = 15;
+        static final int COL_SPEED_EV = 16;
+        static final int COL_SP_ATK_EV = 17;
+        static final int COL_SP_DEF_EV = 18;
+        static final int COL_COMMON_ITEM = 19;
+        static final int COL_RARE_ITEM = 20;
+        static final int COL_GUARANTEED_ITEM = 21;
+        static final int COL_VERY_RARE_ITEM = 22;
+        static final int COL_GENDER_RATIO = 23;
+        static final int COL_HATCH_COUNTER = 24;
+        static final int COL_BASE_HAPPINESS = 25;
+        static final int COL_GROWTH_RATE = 26;
+        static final int COL_EGG_GROUP_1 = 27;
+        static final int COL_EGG_GROUP_2 = 28;
+        static final int COL_ABILITY_1 = 29;
+        static final int COL_ABILITY_2 = 30;
+        static final int COL_ABILITY_3 = 31;
+        static final int COL_RUN_CHANCE = 32;
+        static final int COL_HEIGHT = 33;
+        static final int COL_WEIGHT = 34;
+        static final int COL_COLOR = 35;
+        static final int COL_FLIP = 36;
 
         private static final String[] COLUMN_NAMES = {
                 "ID", "Name",
-                "HP", "ATK", "DEF", "SPEED", "SP_ATK", "SP_DEF",
+                "HP", "ATK", "DEF", "SPEED", "SP_ATK", "SP_DEF", "BST",
                 "Type 1", "Type 2",
                 "Catch Rate", "Exp Yield",
                 "HP EV\nYield", "ATK EV\nYield", "DEF EV\nYield", "SPEED EV\nYield", "SP_ATK EV\nYield",
@@ -886,6 +888,9 @@ public class Gen6PersonalSheetPanel extends JPanel {
         @Override
         public Class<?> getColumnClass(int columnIndex) {
             switch (columnIndex) {
+                case COL_ID:
+                case COL_BST:
+                    return Integer.class;
                 case COL_FLIP:
                     return Boolean.class;
                 default:
@@ -895,7 +900,7 @@ public class Gen6PersonalSheetPanel extends JPanel {
 
         @Override
         public boolean isCellEditable(int rowIndex, int columnIndex) {
-            return columnIndex != COL_ID && columnIndex != COL_GUARANTEED_ITEM;
+            return columnIndex != COL_ID && columnIndex != COL_GUARANTEED_ITEM && columnIndex != COL_BST;
         }
 
         @Override
@@ -922,6 +927,9 @@ public class Gen6PersonalSheetPanel extends JPanel {
                     return p.getSpatk();
                 case COL_SP_DEF:
                     return p.getSpdef();
+                case COL_BST:
+                    return p.getHp() + p.getAttack() + p.getDefense()
+                            + p.getSpeed() + p.getSpatk() + p.getSpdef();
                 case COL_TYPE_1:
                     return p.getPrimaryType(false) != null ? p.getPrimaryType(false).name() : "";
                 case COL_TYPE_2:
@@ -1030,6 +1038,9 @@ public class Gen6PersonalSheetPanel extends JPanel {
                     break;
                 case COL_SP_DEF:
                     p.setSpdef(parseBoundedInt(val, 1, 255));
+                    break;
+                case COL_BST:
+                    // Read-only calculated column
                     break;
                 case COL_TYPE_1:
                     if (val != null && !val.toString().isEmpty()) {

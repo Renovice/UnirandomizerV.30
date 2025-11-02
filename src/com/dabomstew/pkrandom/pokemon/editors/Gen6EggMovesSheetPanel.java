@@ -351,15 +351,14 @@ public class Gen6EggMovesSheetPanel extends JPanel {
         mainScrollPane.setBorder(BorderFactory.createEmptyBorder());
         mainScrollPane.getViewport().setBackground(Color.WHITE);
         EditorUtils.installHeaderViewportSync(mainScrollPane);
-
-        mainScrollPane.getVerticalScrollBar().addAdjustmentListener(
-                e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.add(frozenScrollPane, BorderLayout.CENTER);
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(hasIcons);
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);
@@ -796,8 +795,11 @@ public class Gen6EggMovesSheetPanel extends JPanel {
     }
 
     private class EggMoveCellRenderer extends TableLayoutDefaults.StripedCellRenderer {
+        private final boolean frozen;
+
         EggMoveCellRenderer(boolean frozen) {
             super(frozen, frozen ? new int[] { 0, 1 } : new int[] { 0 });
+            this.frozen = frozen;
             if (frozen) {
                 setHorizontalAlignment(SwingConstants.LEFT);
                 setIconTextGap(10);
@@ -813,7 +815,7 @@ public class Gen6EggMovesSheetPanel extends JPanel {
             } else {
                 setHorizontalAlignment(SwingConstants.LEFT);
             }
-            if (column == 1) {
+            if (frozen && column == 1) {
                 if (iconCache.hasIcons()) {
                     setIcon(iconCache.getIcon(speciesForRow(row)));
                 } else {

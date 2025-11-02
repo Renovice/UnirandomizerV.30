@@ -338,8 +338,7 @@ public class PersonalSheetPanel extends JPanel {
         EditorUtils.installHeaderViewportSync(mainScrollPane);
 
         // Sync scrolling
-        mainScrollPane.getVerticalScrollBar()
-                .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         // Layout
         JPanel leftPanel = new JPanel(new BorderLayout());
@@ -347,6 +346,7 @@ public class PersonalSheetPanel extends JPanel {
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(iconCache.hasIcons());
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);

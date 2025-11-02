@@ -338,8 +338,7 @@ public class Gen5PersonalSheetPanel extends JPanel {
         EditorUtils.installHeaderViewportSync(mainScrollPane);
 
         // Sync scrolling
-        mainScrollPane.getVerticalScrollBar()
-                .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         // Layout
         JPanel leftPanel = new JPanel(new BorderLayout());
@@ -347,6 +346,7 @@ public class Gen5PersonalSheetPanel extends JPanel {
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(iconCache.hasIcons());
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);
@@ -406,6 +406,7 @@ public class Gen5PersonalSheetPanel extends JPanel {
             case PokemonDataTableModel.COL_SPEED:
             case PokemonDataTableModel.COL_SP_ATK:
             case PokemonDataTableModel.COL_SP_DEF:
+            case PokemonDataTableModel.COL_BST:
                 return 65;
             case PokemonDataTableModel.COL_TYPE_1:
             case PokemonDataTableModel.COL_TYPE_2:
@@ -789,38 +790,39 @@ public class Gen5PersonalSheetPanel extends JPanel {
         static final int COL_SPEED = 5;
         static final int COL_SP_ATK = 6;
         static final int COL_SP_DEF = 7;
-        static final int COL_TYPE_1 = 8;
-        static final int COL_TYPE_2 = 9;
-        static final int COL_CATCH_RATE = 10;
-        static final int COL_EXP_YIELD = 11;
-        static final int COL_HP_EV = 12;
-        static final int COL_ATK_EV = 13;
-        static final int COL_DEF_EV = 14;
-        static final int COL_SPEED_EV = 15;
-        static final int COL_SP_ATK_EV = 16;
-        static final int COL_SP_DEF_EV = 17;
-        static final int COL_GUARANTEED_ITEM = 18;
-        static final int COL_COMMON_ITEM = 19;
-        static final int COL_RARE_ITEM = 20;
-        static final int COL_DARK_GRASS_ITEM = 21;
-        static final int COL_GENDER_RATIO = 22;
-        static final int COL_HATCH_COUNTER = 23;
-        static final int COL_BASE_HAPPINESS = 24;
-        static final int COL_GROWTH_RATE = 25;
-        static final int COL_EGG_GROUP_1 = 26;
-        static final int COL_EGG_GROUP_2 = 27;
-        static final int COL_ABILITY_1 = 28;
-        static final int COL_ABILITY_2 = 29;
-        static final int COL_ABILITY_3 = 30;
-        static final int COL_RUN_CHANCE = 31;
-        static final int COL_HEIGHT = 32;
-        static final int COL_WEIGHT = 33;
-        static final int COL_COLOR = 34;
-        static final int COL_FLIP = 35;
+        static final int COL_BST = 8;
+        static final int COL_TYPE_1 = 9;
+        static final int COL_TYPE_2 = 10;
+        static final int COL_CATCH_RATE = 11;
+        static final int COL_EXP_YIELD = 12;
+        static final int COL_HP_EV = 13;
+        static final int COL_ATK_EV = 14;
+        static final int COL_DEF_EV = 15;
+        static final int COL_SPEED_EV = 16;
+        static final int COL_SP_ATK_EV = 17;
+        static final int COL_SP_DEF_EV = 18;
+        static final int COL_GUARANTEED_ITEM = 19;
+        static final int COL_COMMON_ITEM = 20;
+        static final int COL_RARE_ITEM = 21;
+        static final int COL_DARK_GRASS_ITEM = 22;
+        static final int COL_GENDER_RATIO = 23;
+        static final int COL_HATCH_COUNTER = 24;
+        static final int COL_BASE_HAPPINESS = 25;
+        static final int COL_GROWTH_RATE = 26;
+        static final int COL_EGG_GROUP_1 = 27;
+        static final int COL_EGG_GROUP_2 = 28;
+        static final int COL_ABILITY_1 = 29;
+        static final int COL_ABILITY_2 = 30;
+        static final int COL_ABILITY_3 = 31;
+        static final int COL_RUN_CHANCE = 32;
+        static final int COL_HEIGHT = 33;
+        static final int COL_WEIGHT = 34;
+        static final int COL_COLOR = 35;
+        static final int COL_FLIP = 36;
 
         private static final String[] COLUMN_NAMES = {
                 "ID", "Name",
-                "HP", "ATK", "DEF", "SPEED", "SP_ATK", "SP_DEF",
+                "HP", "ATK", "DEF", "SPEED", "SP_ATK", "SP_DEF", "BST",
                 "Type 1", "Type 2",
                 "Catch Rate", "Exp Yield",
                 "HP EV Yield", "ATK EV Yield", "DEF EV Yield", "SPEED EV Yield", "SP_ATK EV Yield", "SP_DEF EV Yield",
@@ -868,6 +870,8 @@ public class Gen5PersonalSheetPanel extends JPanel {
             switch (col) {
                 case COL_ID:
                     return Integer.class;
+                case COL_BST:
+                    return Integer.class;
                 case COL_NAME:
                 case COL_TYPE_1:
                 case COL_TYPE_2:
@@ -891,6 +895,9 @@ public class Gen5PersonalSheetPanel extends JPanel {
 
         @Override
         public boolean isCellEditable(int row, int col) {
+            if (col == COL_BST) {
+                return false;
+            }
             return col > COL_NAME;
         }
 
@@ -918,6 +925,9 @@ public class Gen5PersonalSheetPanel extends JPanel {
                     return p.getSpatk();
                 case COL_SP_DEF:
                     return p.getSpdef();
+                case COL_BST:
+                    return p.getHp() + p.getAttack() + p.getDefense()
+                            + p.getSpeed() + p.getSpatk() + p.getSpdef();
                 case COL_TYPE_1:
                     return getTypeName(p.getPrimaryType(false));
                 case COL_TYPE_2:

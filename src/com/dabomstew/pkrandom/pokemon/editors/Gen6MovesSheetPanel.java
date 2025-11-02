@@ -269,14 +269,14 @@ public class Gen6MovesSheetPanel extends JPanel {
         mainScrollPane.getViewport().setBackground(Color.WHITE);
         mainScrollPane.setBorder(BorderFactory.createEmptyBorder());
         EditorUtils.installHeaderViewportSync(mainScrollPane);
-        mainScrollPane.getVerticalScrollBar()
-                .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.add(frozenScrollPane, BorderLayout.CENTER);
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(false);
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);

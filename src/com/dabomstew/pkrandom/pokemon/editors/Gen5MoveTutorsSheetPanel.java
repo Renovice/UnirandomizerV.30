@@ -214,19 +214,14 @@ public class Gen5MoveTutorsSheetPanel extends JPanel {
         mainScrollPane.getViewport().setBackground(Color.WHITE);
         mainScrollPane.setBorder(BorderFactory.createEmptyBorder());
         EditorUtils.installHeaderViewportSync(mainScrollPane);
-    JScrollBar mainVerticalBar = mainScrollPane.getVerticalScrollBar();
-    JScrollBar frozenVerticalBar = frozenScrollPane.getVerticalScrollBar();
-    if (mainVerticalBar != null && frozenVerticalBar != null) {
-        frozenVerticalBar.setModel(mainVerticalBar.getModel());
-    }
-    mainScrollPane.getVerticalScrollBar()
-        .addAdjustmentListener(e -> frozenScrollPane.getVerticalScrollBar().setValue(e.getValue()));
+        EditorUtils.linkVerticalScrollBars(frozenScrollPane, mainScrollPane);
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.add(frozenScrollPane, BorderLayout.CENTER);
         int frozenWidth = TableLayoutDefaults.frozenPanelWidth(iconCache.hasIcons());
         leftPanel.setPreferredSize(new Dimension(frozenWidth, 0));
         leftPanel.setMinimumSize(new Dimension(frozenWidth, 0));
+        EditorUtils.addHorizontalScrollbarSpacer(leftPanel, mainScrollPane);
 
         panel.add(leftPanel, BorderLayout.WEST);
         panel.add(mainScrollPane, BorderLayout.CENTER);

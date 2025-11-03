@@ -12,8 +12,10 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,10 +33,50 @@ public class Gen5MovesSheetPanel extends JPanel {
     private boolean copyPasteModeEnabled = false;
     private final EditorUtils.FindState findState = new EditorUtils.FindState();
 
-    private static final String[] MOVE_TARGET_OPTIONS = {
-            "Selected Pokemon", "Automatic", "Random", "Both Foes", "All Except User",
-            "User", "User Side", "Entire Field", "Foe Side", "Ally", "User or Ally", "Me First"
+    private static final TargetOption[] MOVE_TARGET_OPTIONS = {
+            new TargetOption(0x00, "Single Target"),
+            new TargetOption(0x07, "Self"),
+            new TargetOption(0x04, "All Adjacent Pokemon"),
+            new TargetOption(0x03, "One Adjacent Enemy"),
+            new TargetOption(0x09, "Single Adjacent Enemy"),
+            new TargetOption(0x05, "All Adjacent Enemies"),
+            new TargetOption(0x01, "Single Ally"),
+            new TargetOption(0x02, "Single Adjacent Ally"),
+            new TargetOption(0x06, "All Allies"),
+            new TargetOption(0x08, "All Pokemon On Field"),
+            new TargetOption(0x0A, "Entire Field"),
+            new TargetOption(0x0B, "Opponent's Field"),
+            new TargetOption(0x0C, "User's Field"),
+            new TargetOption(0x0D, "Self (Protective)")
     };
+
+    private static final String[] MOVE_TARGET_LABELS = Arrays.stream(MOVE_TARGET_OPTIONS)
+            .map(option -> option.label)
+            .toArray(String[]::new);
+
+    private static final Map<String, Integer> LEGACY_TARGET_ALIASES = createLegacyTargetAliases();
+
+    private static Map<String, Integer> createLegacyTargetAliases() {
+        Map<String, Integer> aliases = new HashMap<>();
+        addLegacyAlias(aliases, "Selected Pokemon", 0x00);
+        addLegacyAlias(aliases, "Automatic", 0x07);
+        addLegacyAlias(aliases, "Random", 0x09);
+        addLegacyAlias(aliases, "Both Foes", 0x05);
+        addLegacyAlias(aliases, "All Except User", 0x04);
+        addLegacyAlias(aliases, "User", 0x07);
+        addLegacyAlias(aliases, "User Side", 0x0C);
+        addLegacyAlias(aliases, "Entire Field", 0x0A);
+        addLegacyAlias(aliases, "Foe Side", 0x0B);
+        addLegacyAlias(aliases, "Ally", 0x01);
+        addLegacyAlias(aliases, "User or Ally", 0x02);
+        addLegacyAlias(aliases, "Me First", 0x0D);
+        return aliases;
+    }
+
+    private static void addLegacyAlias(Map<String, Integer> aliases, String label, int value) {
+        aliases.put(label, value & 0xFF);
+        aliases.put(label.toLowerCase(Locale.ROOT), value & 0xFF);
+    }
 
     private static final CategoryQualityOption[] CATEGORY_QUALITY_OPTIONS = {
             new CategoryQualityOption(0, "Damage"),
@@ -78,6 +120,16 @@ public class Gen5MovesSheetPanel extends JPanel {
             new StatusEffectOption(21, "Ingrain"),
             new StatusEffectOption(-1, "Special")
     };
+
+    private static class TargetOption {
+        final int value;
+        final String label;
+
+        TargetOption(int value, String label) {
+            this.value = value & 0xFF;
+            this.label = label;
+        }
+    }
 
     private static class CategoryQualityOption {
         final int id;
@@ -870,12 +922,11 @@ public class Gen5MovesSheetPanel extends JPanel {
     }
 
     private static class TargetComboBoxEditor extends DefaultCellEditor {
-        // Matching PokEditor's target keys from MovesTable.java line 18
         public TargetComboBoxEditor() {
             super(new JComboBox<String>());
             JComboBox<String> comboBox = (JComboBox<String>) getComponent();
             comboBox.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            for (String target : MOVE_TARGET_OPTIONS) {
+            for (String target : MOVE_TARGET_LABELS) {
                 comboBox.addItem(target);
             }
             EditorUtils.installSearchableComboBox(comboBox);
@@ -1619,22 +1670,47 @@ public class Gen5MovesSheetPanel extends JPanel {
         }
 
         private String getTargetName(int target) {
-            if (target >= 0 && target < MOVE_TARGET_OPTIONS.length) {
-                return MOVE_TARGET_OPTIONS[target];
+            int normalized = target & 0xFF;
+            for (TargetOption option : MOVE_TARGET_OPTIONS) {
+                if (option.value == normalized) {
+                    return option.label;
+                }
             }
-            return MOVE_TARGET_OPTIONS[0];
+            return String.format("0x%02X", normalized);
         }
 
         private int parseTargetName(String targetName) {
             if (targetName == null) {
-                return 0;
+                return MOVE_TARGET_OPTIONS[0].value;
             }
-            for (int i = 0; i < MOVE_TARGET_OPTIONS.length; i++) {
-                if (MOVE_TARGET_OPTIONS[i].equals(targetName)) {
-                    return i;
+            String trimmed = targetName.trim();
+            if (trimmed.isEmpty()) {
+                return MOVE_TARGET_OPTIONS[0].value;
+            }
+            for (TargetOption option : MOVE_TARGET_OPTIONS) {
+                if (option.label.equalsIgnoreCase(trimmed)) {
+                    return option.value;
                 }
             }
-            return 0;
+            Integer legacyValue = LEGACY_TARGET_ALIASES.get(trimmed);
+            if (legacyValue == null) {
+                legacyValue = LEGACY_TARGET_ALIASES.get(trimmed.toLowerCase(Locale.ROOT));
+            }
+            if (legacyValue != null) {
+                return legacyValue;
+            }
+            if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+                try {
+                    return Integer.parseInt(trimmed.substring(2), 16) & 0xFF;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            try {
+                return Integer.parseInt(trimmed) & 0xFF;
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+            return MOVE_TARGET_OPTIONS[0].value;
         }
 
         private String getStatusTypeName(StatusType type) {
@@ -1892,3 +1968,4 @@ public class Gen5MovesSheetPanel extends JPanel {
     }
 
 }
+

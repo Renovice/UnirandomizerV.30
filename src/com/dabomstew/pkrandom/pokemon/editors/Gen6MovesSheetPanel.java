@@ -14,6 +14,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,9 +33,65 @@ public class Gen6MovesSheetPanel extends JPanel {
     private final EditorUtils.FindState findState = new EditorUtils.FindState();
 
     private static final String[] MOVE_TARGET_OPTIONS = {
-            "Selected Pokemon", "Automatic", "Random", "Both Foes", "All Except User",
-            "User", "User Side", "Entire Field", "Foe Side", "Ally", "User or Ally", "Me First"
+            "Single Adjacent Ally/Foe",
+            "Any Ally",
+            "Any Adjacent Ally",
+            "Single Adjacent Foe",
+            "Everyone but User",
+            "All Foes",
+            "All Allies",
+            "Self",
+            "All Pokemon on Field",
+            "Single Adjacent Foe (2)",
+            "Entire Field",
+            "Opponent's Field",
+            "User's Field",
+            "Self (Counter)"
     };
+
+    private static final Map<String, Integer> LEGACY_TARGET_ALIASES = createLegacyTargetAliases();
+
+    private static Map<String, Integer> createLegacyTargetAliases() {
+        Map<String, Integer> aliases = new HashMap<>();
+        addLegacyAlias(aliases, "Selected Pokemon", 0);
+        addLegacyAlias(aliases, "Selected target", 0);
+        addLegacyAlias(aliases, "Single target", 0);
+        addLegacyAlias(aliases, "Automatic", 1);
+        addLegacyAlias(aliases, "User or Ally", 1);
+        addLegacyAlias(aliases, "Random", 9);
+        addLegacyAlias(aliases, "Random target", 9);
+        addLegacyAlias(aliases, "Both Foes", 5);
+        addLegacyAlias(aliases, "Both foes", 5);
+        addLegacyAlias(aliases, "All Except User", 4);
+        addLegacyAlias(aliases, "All except user", 4);
+        addLegacyAlias(aliases, "User", 7);
+        addLegacyAlias(aliases, "User Side", 12);
+        addLegacyAlias(aliases, "User side", 12);
+        addLegacyAlias(aliases, "Entire Field", 10);
+        addLegacyAlias(aliases, "Foe Side", 11);
+        addLegacyAlias(aliases, "Opponents field", 11);
+        addLegacyAlias(aliases, "Opponent's field", 11);
+        addLegacyAlias(aliases, "Ally", 2);
+        addLegacyAlias(aliases, "User or Ally", 1);
+        addLegacyAlias(aliases, "Me First", 13);
+        addLegacyAlias(aliases, "Self (Protective)", 13);
+        addLegacyAlias(aliases, "Self (Counter)", 13);
+        addLegacyAlias(aliases, "Any Ally or Self", 1);
+        addLegacyAlias(aliases, "Any Adjacent Ally", 2);
+        addLegacyAlias(aliases, "Self", 7);
+        addLegacyAlias(aliases, "All Allies", 6);
+        addLegacyAlias(aliases, "All Pokemon on Field", 8);
+        addLegacyAlias(aliases, "Users field", 12);
+        return aliases;
+    }
+
+    private static void addLegacyAlias(Map<String, Integer> aliases, String label, int value) {
+        if (label == null || label.isEmpty()) {
+            return;
+        }
+        aliases.put(label, value & 0xFF);
+        aliases.put(label.toLowerCase(Locale.ROOT), value & 0xFF);
+    }
 
     private static final CategoryQualityOption[] CATEGORY_QUALITY_OPTIONS = {
             new CategoryQualityOption(0, "Damage"),
@@ -1650,20 +1707,43 @@ public class Gen6MovesSheetPanel extends JPanel {
         }
 
         private String getTargetName(int target) {
-            if (target >= 0 && target < MOVE_TARGET_OPTIONS.length) {
-                return MOVE_TARGET_OPTIONS[target];
+            int normalized = target & 0xFF;
+            if (normalized >= 0 && normalized < MOVE_TARGET_OPTIONS.length) {
+                return MOVE_TARGET_OPTIONS[normalized];
             }
-            return MOVE_TARGET_OPTIONS[0];
+            return String.format("0x%02X", normalized);
         }
 
         private int parseTargetName(String targetName) {
             if (targetName == null) {
                 return 0;
             }
+            String trimmed = targetName.trim();
+            if (trimmed.isEmpty()) {
+                return 0;
+            }
             for (int i = 0; i < MOVE_TARGET_OPTIONS.length; i++) {
-                if (MOVE_TARGET_OPTIONS[i].equals(targetName)) {
+                if (MOVE_TARGET_OPTIONS[i].equalsIgnoreCase(trimmed)) {
                     return i;
                 }
+            }
+            Integer legacyValue = LEGACY_TARGET_ALIASES.get(trimmed);
+            if (legacyValue == null) {
+                legacyValue = LEGACY_TARGET_ALIASES.get(trimmed.toLowerCase(Locale.ROOT));
+            }
+            if (legacyValue != null) {
+                return legacyValue;
+            }
+            if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+                try {
+                    return Integer.parseInt(trimmed.substring(2), 16) & 0xFF;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            try {
+                return Integer.parseInt(trimmed) & 0xFF;
+            } catch (NumberFormatException ignored) {
+                // fall through
             }
             return 0;
         }

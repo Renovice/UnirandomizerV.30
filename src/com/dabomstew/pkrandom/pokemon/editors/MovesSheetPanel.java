@@ -9,8 +9,11 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -356,7 +359,7 @@ public class MovesSheetPanel extends JPanel {
                 column.setCellRenderer(new TypeCellRenderer());
                 column.setCellEditor(new TypeComboBoxEditor(romHandler));
             } else if (modelCol == tableModel.getTargetColumnIndex()) {
-                column.setCellEditor(new TargetComboBoxEditor());
+                column.setCellEditor(new TargetComboBoxEditor(tableModel.getTargetComboBoxValues()));
             } else if (tableModel.isFlagColumn(modelCol)) {
                 column.setCellEditor(new StableCheckBoxEditor());
                 column.setCellRenderer(new CheckBoxRenderer());
@@ -652,17 +655,11 @@ public class MovesSheetPanel extends JPanel {
     }
 
     private static class TargetComboBoxEditor extends DefaultCellEditor {
-        // Matching PokEditor's target keys from MovesTable.java line 18
-        private static final String[] TARGETS = {
-                "Selected Pokemon", "Automatic", "Random", "Both Foes", "All Except User",
-                "User", "User Side", "Entire Field", "Foe Side", "Ally", "User or Ally", "Me First"
-        };
-
-        public TargetComboBoxEditor() {
+        public TargetComboBoxEditor(List<String> targetOptions) {
             super(new JComboBox<String>());
             JComboBox<String> comboBox = (JComboBox<String>) getComponent();
             comboBox.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            for (String target : TARGETS) {
+            for (String target : targetOptions) {
                 comboBox.addItem(target);
             }
             EditorUtils.installSearchableComboBox(comboBox);
@@ -675,8 +672,14 @@ public class MovesSheetPanel extends JPanel {
     private static class MovesDataTableModel extends AbstractTableModel {
         private final List<Move> movesList;
         private final RomHandler romHandler;
-    private final boolean supportsExtendedMoveFlags;
-    private final boolean showContestColumns;
+        private final int generation;
+        private final boolean usesBitflagTargets;
+        private final boolean supportsExtendedMoveFlags;
+        private final boolean showContestColumns;
+        private final Map<Integer, String> targetDisplayByValue;
+        private final Map<String, Integer> targetLabelToValue;
+        private final List<String> targetComboBoxValues;
+        private final int defaultTargetValue;
 
         private final List<String> columnNames;
 
@@ -705,9 +708,32 @@ public class MovesSheetPanel extends JPanel {
         public MovesDataTableModel(List<Move> movesList, RomHandler romHandler) {
             this.movesList = movesList;
             this.romHandler = romHandler;
-            boolean isGen3 = romHandler instanceof com.dabomstew.pkromio.romhandlers.Gen3RomHandler;
-            this.supportsExtendedMoveFlags = !isGen3;
-            this.showContestColumns = !isGen3;
+            this.generation = romHandler != null ? romHandler.generationOfPokemon() : -1;
+            this.usesBitflagTargets = generation == 3 || generation == 4;
+            List<TargetOption> targetOpts = buildTargetOptions(generation);
+            this.targetDisplayByValue = new LinkedHashMap<>();
+            for (TargetOption option : targetOpts) {
+                targetDisplayByValue.put(option.value, option.label);
+            }
+            for (Move move : movesList) {
+                if (move == null) {
+                    continue;
+                }
+                int targetValue = move.target & 0xFFFF;
+                targetDisplayByValue.putIfAbsent(targetValue, formatTargetValue(targetValue));
+            }
+            this.targetComboBoxValues = new ArrayList<>(targetDisplayByValue.values());
+            this.targetLabelToValue = new HashMap<>();
+            for (Map.Entry<Integer, String> entry : targetDisplayByValue.entrySet()) {
+                registerTargetAlias(entry.getValue(), entry.getKey());
+                registerTargetAlias(formatTargetValue(entry.getKey()), entry.getKey());
+            }
+            if (usesBitflagTargets) {
+                registerBitflagTargetAliases();
+            }
+            this.defaultTargetValue = targetOpts.isEmpty() ? 0 : targetOpts.get(0).value;
+            this.supportsExtendedMoveFlags = generation != 3;
+            this.showContestColumns = generation != 3;
 
             List<String> cols = new ArrayList<>();
             colId = addColumn(cols, "ID");
@@ -742,6 +768,10 @@ public class MovesSheetPanel extends JPanel {
                 colContestType = -1;
             }
             columnNames = java.util.Collections.unmodifiableList(cols);
+        }
+
+        public List<String> getTargetComboBoxValues() {
+            return new ArrayList<>(targetComboBoxValues);
         }
 
         private int addColumn(List<String> cols, String name) {
@@ -1039,28 +1069,160 @@ public class MovesSheetPanel extends JPanel {
 
         // Convert target index to PokEditor's target names
         private String getTargetName(int target) {
-            String[] targets = {
-                    "Selected Pokemon", "Automatic", "Random", "Both Foes", "All Except User",
-                    "User", "User Side", "Entire Field", "Foe Side", "Ally", "User or Ally", "Me First"
-            };
-            if (target >= 0 && target < targets.length) {
-                return targets[target];
+            String label = targetDisplayByValue.get(target & 0xFFFF);
+            if (label != null) {
+                return label;
             }
-            return "Selected Pokemon";
+            return formatTargetValue(target);
         }
 
         // Convert PokEditor's target names to index
         private int parseTargetName(String targetName) {
-            String[] targets = {
-                    "Selected Pokemon", "Automatic", "Random", "Both Foes", "All Except User",
-                    "User", "User Side", "Entire Field", "Foe Side", "Ally", "User or Ally", "Me First"
-            };
-            for (int i = 0; i < targets.length; i++) {
-                if (targets[i].equals(targetName)) {
-                    return i;
+            if (targetName == null) {
+                return defaultTargetValue;
+            }
+            String trimmed = targetName.trim();
+            if (trimmed.isEmpty()) {
+                return defaultTargetValue;
+            }
+            Integer mapped = targetLabelToValue.get(trimmed);
+            if (mapped == null) {
+                mapped = targetLabelToValue.get(trimmed.toLowerCase(Locale.ROOT));
+            }
+            if (mapped != null) {
+                return mapped;
+            }
+            if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+                try {
+                    return Integer.parseInt(trimmed.substring(2), 16) & 0xFFFF;
+                } catch (NumberFormatException ignored) {
                 }
             }
-            return 0; // Default to "Selected Pokemon"
+            try {
+                return Integer.parseInt(trimmed) & 0xFFFF;
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+            return defaultTargetValue;
+        }
+
+        private void registerTargetAlias(String label, int value) {
+            if (label == null) {
+                return;
+            }
+            String trimmed = label.trim();
+            if (trimmed.isEmpty()) {
+                return;
+            }
+            int normalizedValue = value & 0xFFFF;
+            targetLabelToValue.put(trimmed, normalizedValue);
+            targetLabelToValue.put(trimmed.toLowerCase(Locale.ROOT), normalizedValue);
+        }
+
+        private void registerBitflagTargetAliases() {
+            if (generation == 3) {
+                registerTargetAlias("UserOrSelected", 0x00);
+                registerTargetAlias("User or Selected", 0x00);
+                registerTargetAlias("Selected Pokemon", 0x00);
+                registerTargetAlias("Selected target", 0x00);
+                registerTargetAlias("RecentAttacker", 0x01);
+                registerTargetAlias("Recent Attacker", 0x01);
+                registerTargetAlias("Automatic", 0x01);
+                registerTargetAlias("Random", 0x04);
+                registerTargetAlias("Random target", 0x04);
+                registerTargetAlias("Both Foes", 0x08);
+                registerTargetAlias("Both foes", 0x08);
+                registerTargetAlias("Both", 0x08);
+                registerTargetAlias("All Except User", 0x20);
+                registerTargetAlias("Everyone", 0x20);
+                registerTargetAlias("Both foes & partner", 0x20);
+                registerTargetAlias("Opponents field", 0x40);
+                registerTargetAlias("Opponent's field", 0x40);
+                registerTargetAlias("Hazard", 0x40);
+                registerTargetAlias("Self", 0x10);
+                registerTargetAlias("User", 0x10);
+            } else if (generation == 4) {
+                registerTargetAlias("Single target", 0x0000);
+                registerTargetAlias("Selected Pokemon", 0x0000);
+                registerTargetAlias("Automatic", 0x0001);
+                registerTargetAlias("Depends on target", 0x0001);
+                registerTargetAlias("Random", 0x0002);
+                registerTargetAlias("Random target", 0x0002);
+                registerTargetAlias("Both opponents", 0x0004);
+                registerTargetAlias("Both Foes", 0x0004);
+                registerTargetAlias("All except User", 0x0008);
+                registerTargetAlias("All Except User", 0x0008);
+                registerTargetAlias("Everyone", 0x0008);
+                registerTargetAlias("User", 0x0010);
+                registerTargetAlias("Self", 0x0010);
+                registerTargetAlias("User's side of field", 0x0020);
+                registerTargetAlias("User Side", 0x0020);
+                registerTargetAlias("Entire field", 0x0040);
+                registerTargetAlias("Opponent's side of field", 0x0080);
+                registerTargetAlias("Opponents field", 0x0080);
+                registerTargetAlias("Foe Side", 0x0080);
+                registerTargetAlias("Ally", 0x0100);
+                registerTargetAlias("User or Ally", 0x0200);
+                registerTargetAlias("Me First", 0x0400);
+                registerTargetAlias("MOVE_TARGET_ME_FIRST", 0x0400);
+            }
+        }
+
+        private static class TargetOption {
+            final int value;
+            final String label;
+
+            TargetOption(int value, String label) {
+                this.value = value;
+                this.label = label;
+            }
+        }
+
+        private static List<TargetOption> buildTargetOptions(int generation) {
+            if (generation == 3) {
+                return Arrays.asList(
+                        new TargetOption(0x00, "Selected target"),
+                        new TargetOption(0x01, "Depends on target"),
+                        new TargetOption(0x04, "Random target"),
+                        new TargetOption(0x08, "Both foes"),
+                        new TargetOption(0x10, "User"),
+                        new TargetOption(0x20, "Both foes & partner"),
+                        new TargetOption(0x40, "Opponent's field")
+                );
+            } else if (generation == 4) {
+                return Arrays.asList(
+                        new TargetOption(0x0000, "Single target"),
+                        new TargetOption(0x0001, "Automatic"),
+                        new TargetOption(0x0002, "Random"),
+                        new TargetOption(0x0004, "Both opponents"),
+                        new TargetOption(0x0008, "All except User"),
+                        new TargetOption(0x0010, "User"),
+                        new TargetOption(0x0020, "User's side of field"),
+                        new TargetOption(0x0040, "Entire field"),
+                        new TargetOption(0x0080, "Opponent's side of field"),
+                        new TargetOption(0x0100, "Ally"),
+                        new TargetOption(0x0200, "User or Ally"),
+                        new TargetOption(0x0400, "Me First")
+                );
+            }
+            return Arrays.asList(
+                    new TargetOption(0, "Selected Pokemon"),
+                    new TargetOption(1, "Automatic"),
+                    new TargetOption(2, "Random"),
+                    new TargetOption(3, "Both Foes"),
+                    new TargetOption(4, "All Except User"),
+                    new TargetOption(5, "User"),
+                    new TargetOption(6, "User Side"),
+                    new TargetOption(7, "Entire Field"),
+                    new TargetOption(8, "Foe Side"),
+                    new TargetOption(9, "Ally"),
+                    new TargetOption(10, "User or Ally"),
+                    new TargetOption(11, "Me First")
+            );
+        }
+
+        private static String formatTargetValue(int target) {
+            return String.format("0x%04X", target & 0xFFFF);
         }
 
         // Parse boolean from various object types

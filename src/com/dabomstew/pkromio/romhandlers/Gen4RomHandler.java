@@ -840,12 +840,16 @@ public class Gen4RomHandler extends AbstractDSRomHandler {
 	@Override
 	public void saveMoves() {
 		for (int i = 1; i <= Gen4Constants.moveCount; i++) {
+			Move move = moves[i];
+			if (move == null) {
+				continue;
+			}
 			byte[] data = moveNarc.files.get(i);
-			writeWord(data, 0, moves[i].effectIndex);
-			data[2] = Gen4Constants.moveCategoryToByte(moves[i].category);
-			data[3] = (byte) moves[i].power;
-			data[4] = Gen4Constants.typeToByte(moves[i].type);
-			int hitratio = (int) Math.round(moves[i].hitratio);
+			writeWord(data, 0, clamp(move.effectIndex, 0, 0xFFFF));
+			data[2] = Gen4Constants.moveCategoryToByte(move.category);
+			data[3] = (byte) clamp(move.power, 0, 255);
+			data[4] = Gen4Constants.typeToByte(move.type);
+			int hitratio = (int) Math.round(move.hitratio);
 			if (hitratio < 0) {
 				hitratio = 0;
 			}
@@ -853,7 +857,42 @@ public class Gen4RomHandler extends AbstractDSRomHandler {
 				hitratio = 100;
 			}
 			data[5] = (byte) hitratio;
-			data[6] = (byte) moves[i].pp;
+			data[6] = (byte) clamp(move.pp, 0, 255);
+			data[7] = (byte) clamp(move.secondaryEffectChance, 0, 255);
+			writeWord(data, 8, clamp(move.target, 0, 0xFFFF));
+			data[10] = (byte) clampSigned(move.priority, -128, 127);
+
+			int flags = 0;
+			if (move.makesContact) {
+				flags |= 0x01;
+			}
+			if (move.isProtectedFromProtect) {
+				flags |= 0x02;
+			}
+			if (move.isMagicCoatAffected) {
+				flags |= 0x04;
+			}
+			if (move.isSnatchAffected) {
+				flags |= 0x08;
+			}
+			if (move.isMirrorMoveAffected) {
+				flags |= 0x10;
+			}
+			if (move.isFlinchMove) {
+				flags |= 0x20;
+			}
+			if (move.hidesHpBars) {
+				flags |= 0x40;
+			}
+			if (move.removesTargetShadow) {
+				flags |= 0x80;
+			}
+			data[11] = (byte) flags;
+
+			if (data.length >= 16) {
+				data[12] = (byte) clamp(move.contestEffect, 0, 255);
+				data[13] = (byte) clamp(move.contestType, 0, 255);
+			}
 		}
 
 		try {
@@ -3277,13 +3316,28 @@ public class Gen4RomHandler extends AbstractDSRomHandler {
 
 	private void writeEggMoves(Map<Integer, List<Integer>> eggMoves, byte[] data, int startingOffset) {
 		int currentOffset = startingOffset;
-		for (int species : eggMoves.keySet()) {
+		List<Integer> speciesList = new ArrayList<>(eggMoves.keySet());
+		Collections.sort(speciesList);
+		for (int species : speciesList) {
+			List<Integer> moves = eggMoves.get(species);
+			if (moves == null || moves.isEmpty()) {
+				continue;
+			}
+			if (currentOffset + 2 > data.length) {
+				break;
+			}
 			FileFunctions.write2ByteInt(data, currentOffset, species + 20000);
 			currentOffset += 2;
-			for (int move : eggMoves.get(species)) {
+			for (int move : moves) {
+				if (currentOffset + 2 > data.length) {
+					break;
+				}
 				FileFunctions.write2ByteInt(data, currentOffset, move);
 				currentOffset += 2;
 			}
+		}
+		if (currentOffset + 2 <= data.length) {
+			FileFunctions.write2ByteInt(data, currentOffset, 0xFFFF);
 		}
 	}
 
@@ -6377,6 +6431,26 @@ public class Gen4RomHandler extends AbstractDSRomHandler {
 			return rawImageFemale.length != 0 && rawImageMale.length != 0
 					&& !Arrays.equals(rawImageFemale, rawImageMale);
 		}
+	}
+
+	private int clamp(int value, int min, int max) {
+		if (value < min) {
+			return min;
+		}
+		if (value > max) {
+			return max;
+		}
+		return value;
+	}
+
+	private int clampSigned(int value, int min, int max) {
+		if (value < min) {
+			return min;
+		}
+		if (value > max) {
+			return max;
+		}
+		return value;
 	}
 
 	public String getPaletteFilesID() {

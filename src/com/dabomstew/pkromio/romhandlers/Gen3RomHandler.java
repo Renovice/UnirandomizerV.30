@@ -1064,39 +1064,49 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         int moveCount = romEntry.getIntValue("MoveCount");
         int offs = romEntry.getIntValue("MoveData");
         for (int i = 1; i <= moveCount; i++) {
+            Move move = moves[i];
+            if (move == null) {
+                continue;
+            }
 
-            int hitratio = (int) Math.round(moves[i].hitratio);
+            int base = offs + i * 0xC;
+
+            int hitratio = (int) Math.round(move.hitratio);
             hitratio = Math.max(hitratio, 0);
             hitratio = Math.min(hitratio, 100);
 
-            // TODO: where does this 0xC come from?
-            writeBytes(offs + i * 0xC, new byte[] { (byte) moves[i].effectIndex,
-                    (byte) moves[i].power, Gen3Constants.typeToByte(moves[i].type),
-                    (byte) hitratio, (byte) moves[i].pp });
+            writeByte(base, (byte) clamp(move.effectIndex, 0, 255));
+            writeByte(base + 1, (byte) clamp(move.power, 0, 255));
+            writeByte(base + 2, Gen3Constants.typeToByte(move.type));
+            writeByte(base + 3, (byte) hitratio);
+            writeByte(base + 4, (byte) clamp(move.pp, 0, 255));
+            writeByte(base + 5, (byte) clamp(move.secondaryEffectChance, 0, 255));
+            writeByte(base + 6, (byte) (move.target & 0xFF));
+            writeByte(base + 7, (byte) move.priority);
 
-            int originalFlags = rom[offs + i * 0xC + 8] & 0xFF;
+            int originalFlags = rom[base + 8] & 0xFF;
             int flags = 0;
-            if (moves[i].makesContact) {
+            if (move.makesContact) {
                 flags |= 0x01;
             }
-            if (moves[i].isProtectedFromProtect) {
+            if (move.isProtectedFromProtect) {
                 flags |= 0x02;
             }
-            if (moves[i].isMagicCoatAffected) {
+            if (move.isMagicCoatAffected) {
                 flags |= 0x04;
             }
-            if (moves[i].isSnatchAffected) {
+            if (move.isSnatchAffected) {
                 flags |= 0x08;
             }
-            if (moves[i].isMirrorMoveAffected) {
+            if (move.isMirrorMoveAffected) {
                 flags |= 0x10;
             }
-            if (moves[i].isFlinchMove) {
+            if (move.isFlinchMove) {
                 flags |= 0x20;
             }
 
             flags |= originalFlags & ~0x3F;
-            writeByte(offs + i * 0xC + 8, (byte) flags);
+            writeByte(base + 8, (byte) flags);
         }
     }
 
@@ -2168,14 +2178,22 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
     @Override
     public void setEggMoves(Map<Integer, List<Integer>> eggMoves) {
         int offset = romEntry.getIntValue("EggMoves");
-        for (int species : eggMoves.keySet()) {
-            FileFunctions.write2ByteInt(rom, offset, pokedexToInternal[species] + 20000);
-            offset += 2;
-            for (int move : eggMoves.get(species)) {
-                FileFunctions.write2ByteInt(rom, offset, move);
-                offset += 2;
+        int currentOffset = offset;
+        List<Integer> speciesList = new ArrayList<>(eggMoves.keySet());
+        Collections.sort(speciesList);
+        for (int species : speciesList) {
+            List<Integer> movesForSpecies = eggMoves.get(species);
+            if (movesForSpecies == null || movesForSpecies.isEmpty()) {
+                continue;
+            }
+            FileFunctions.write2ByteInt(rom, currentOffset, pokedexToInternal[species] + 20000);
+            currentOffset += 2;
+            for (int move : movesForSpecies) {
+                FileFunctions.write2ByteInt(rom, currentOffset, move);
+                currentOffset += 2;
             }
         }
+        FileFunctions.write2ByteInt(rom, currentOffset, 0xFFFF);
     }
 
     public static class StaticPokemon {
@@ -4832,7 +4850,16 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         return itemIdsToSet(Gen3Constants.consumableHeldItems);
     }
 
-    @Override
+	private int clamp(int value, int min, int max) {
+		if (value < min) {
+			return min;
+		}
+		if (value > max) {
+			return max;
+		}
+		return value;
+	}
+
     public List<Item> getSensibleHeldItemsFor(TrainerPokemon tp, boolean consumableOnly, List<Move> moves, int[] pokeMoves) {
         List<Integer> ids = new ArrayList<>(Gen3Constants.generalPurposeConsumableItems);
         if (!consumableOnly) {

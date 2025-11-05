@@ -592,6 +592,7 @@ public class Gen5RomHandler extends AbstractDSRomHandler {
             byte[] data = moveNarc.files.get(i);
 
             data[0] = Gen5Constants.typeToByte(move.type, hasFairyType);
+            data[1] = (byte) clamp(move.categoryQuality, 0, 255);
             data[2] = Gen5Constants.moveCategoryToByte(move.category);
             data[3] = (byte) clamp(move.power, 0, 255);
 

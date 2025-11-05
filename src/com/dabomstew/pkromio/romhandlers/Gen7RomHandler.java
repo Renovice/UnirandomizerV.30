@@ -553,40 +553,71 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 moves[i].number = i;
                 moves[i].internalId = i;
                 moves[i].effectIndex = readWord(moveData, 16);
-                moves[i].hitratio = (moveData[4] & 0xFF);
+                moves[i].hitratio = moveData[4] & 0xFF;
                 moves[i].power = moveData[3] & 0xFF;
                 moves[i].pp = moveData[5] & 0xFF;
                 moves[i].type = Gen7Constants.typeTable[moveData[0] & 0xFF];
-                moves[i].flinchPercentChance = moveData[15] & 0xFF;
-                moves[i].target = moveData[20] & 0xFF;
                 moves[i].category = Gen7Constants.moveCategoryIndices[moveData[2] & 0xFF];
+                moves[i].categoryQuality = moveData[1] & 0xFF;
                 moves[i].priority = moveData[6];
 
-                int critStages = moveData[14] & 0xFF;
-                if (critStages == 6) {
+                int multiHitPacked = moveData[7] & 0xFF;
+                moves[i].minHits = multiHitPacked & 0x0F;
+                moves[i].maxHits = (multiHitPacked >> 4) & 0x0F;
+                if (moves[i].minHits == 0 && moves[i].maxHits == 0) {
+                    moves[i].minHits = 1;
+                    moves[i].maxHits = 1;
+                }
+
+                int rawStatusEffect = readWord(moveData, 8);
+                moves[i].statusEffect = rawStatusEffect;
+                int statusChance = moveData[10] & 0xFF;
+                moves[i].statusPercentChance = statusChance;
+                moves[i].secondaryEffectChance = statusChance;
+
+                moves[i].minTrapTurns = moveData[12] & 0xFF;
+                moves[i].maxTrapTurns = moveData[13] & 0xFF;
+
+                moves[i].criticalStage = moveData[14] & 0xFF;
+                moves[i].criticalChance = CriticalChance.NORMAL;
+                if (moves[i].criticalStage == 6) {
                     moves[i].criticalChance = CriticalChance.GUARANTEED;
-                } else if (critStages > 0) {
+                } else if (moves[i].criticalStage > 0) {
                     moves[i].criticalChance = CriticalChance.INCREASED;
                 }
 
-                int internalStatusType = readWord(moveData, 8);
-                int flags = FileFunctions.readFullInt(moveData, 36);
-                moves[i].makesContact = (flags & 0x001) != 0;
-                moves[i].isChargeMove = (flags & 0x002) != 0;
-                moves[i].isRechargeMove = (flags & 0x004) != 0;
-                moves[i].isPunchMove = (flags & 0x080) != 0;
-                moves[i].isSoundMove = (flags & 0x100) != 0;
-                moves[i].isTrapMove = internalStatusType == 8;
-                switch (moves[i].effectIndex) {
-                    case Gen7Constants.noDamageTargetTrappingEffect:
-                    case Gen7Constants.noDamageFieldTrappingEffect:
-                    case Gen7Constants.damageAdjacentFoesTrappingEffect:
-                    case Gen7Constants.damageTargetTrappingEffect:
-                        moves[i].isTrapMove = true;
-                        break;
-                }
+                moves[i].flinchPercentChance = moveData[15] & 0xFF;
+                moves[i].recoilPercent = (byte) moveData[18];
+                moves[i].absorbPercent = moveData[19] & 0xFF;
+                moves[i].target = moveData[20] & 0xFF;
 
-                int qualities = moveData[1];
+                int flags = FileFunctions.readFullInt(moveData, 36);
+                moves[i].makesContact = (flags & 0x0001) != 0;
+                moves[i].isChargeMove = (flags & 0x0002) != 0;
+                moves[i].isRechargeMove = (flags & 0x0004) != 0;
+                moves[i].isProtectedFromProtect = (flags & 0x0008) != 0;
+                moves[i].isMagicCoatAffected = (flags & 0x0010) != 0;
+                moves[i].isSnatchAffected = (flags & 0x0020) != 0;
+                moves[i].isMirrorMoveAffected = (flags & 0x0040) != 0;
+                moves[i].isPunchMove = (flags & 0x0080) != 0;
+                moves[i].isSoundMove = (flags & 0x0100) != 0;
+                moves[i].groundedByGravity = (flags & 0x0200) != 0;
+                moves[i].defrostsUser = (flags & 0x0400) != 0;
+                moves[i].hitsNonAdjacent = (flags & 0x0800) != 0;
+                moves[i].isHealingMove = (flags & 0x1000) != 0;
+                moves[i].bypassesSubstitute = (flags & 0x2000) != 0;
+                moves[i].extraFlag1 = (flags & 0x4000) != 0;
+                moves[i].extraFlag2 = (flags & 0x8000) != 0;
+
+                moves[i].isTrapMove = moves[i].minTrapTurns > 0
+                        || moves[i].maxTrapTurns > 0
+                        || moves[i].effectIndex == Gen7Constants.noDamageTargetTrappingEffect
+                        || moves[i].effectIndex == Gen7Constants.noDamageFieldTrappingEffect
+                        || moves[i].effectIndex == Gen7Constants.damageAdjacentFoesTrappingEffect
+                        || moves[i].effectIndex == Gen7Constants.damageTargetTrappingEffect
+                        || rawStatusEffect == 8;
+
+                int qualities = moves[i].categoryQuality;
                 int recoilOrAbsorbPercent = moveData[18];
                 if (qualities == Gen7Constants.damageAbsorbQuality) {
                     moves[i].absorbPercent = recoilOrAbsorbPercent;
@@ -595,7 +626,7 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 }
 
                 if (i == MoveIDs.swift) {
-                    perfectAccuracy = (int)moves[i].hitratio;
+                    perfectAccuracy = (int) moves[i].hitratio;
                 }
 
                 if (GlobalConstants.normalMultihitMoves.contains(i)) {
@@ -609,7 +640,6 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 switch (qualities) {
                     case Gen7Constants.noDamageStatChangeQuality:
                     case Gen7Constants.noDamageStatusAndStatChangeQuality:
-                        // All Allies or Self
                         if (moves[i].target == 6 || moves[i].target == 7) {
                             moves[i].statChangeMoveType = StatChangeMoveType.NO_DAMAGE_USER;
                         } else if (moves[i].target == 2) {
@@ -632,18 +662,23 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                 }
 
                 for (int statChange = 0; statChange < 3; statChange++) {
-                    moves[i].statChanges[statChange].type = StatChangeType.values()[moveData[21 + statChange]];
-                    moves[i].statChanges[statChange].stages = moveData[24 + statChange];
-                    moves[i].statChanges[statChange].percentChance = moveData[27 + statChange];
+                    int statTypeIndex = moveData[21 + statChange] & 0xFF;
+                    StatChangeType type = statTypeIndex < StatChangeType.values().length
+                            ? StatChangeType.values()[statTypeIndex]
+                            : StatChangeType.NONE;
+                    moves[i].statChanges[statChange].type = type;
+                    moves[i].statChanges[statChange].stages = (byte) moveData[24 + statChange];
+                    moves[i].statChanges[statChange].percentChance = moveData[27 + statChange] & 0xFF;
                 }
 
-                // Exclude status types that aren't in the StatusType enum.
-                if (internalStatusType < 7) {
-                    moves[i].statusType = StatusType.values()[internalStatusType];
-                    if (moves[i].statusType == StatusType.POISON && (i == MoveIDs.toxic || i == MoveIDs.poisonFang)) {
+                moves[i].statusMoveType = StatusMoveType.NONE_OR_UNKNOWN;
+                moves[i].statusType = StatusType.NONE;
+                if (rawStatusEffect < 7) {
+                    moves[i].statusType = StatusType.values()[rawStatusEffect];
+                    if (moves[i].statusType == StatusType.POISON &&
+                            (i == MoveIDs.toxic || i == MoveIDs.poisonFang)) {
                         moves[i].statusType = StatusType.TOXIC_POISON;
                     }
-                    moves[i].statusPercentChance = moveData[10] & 0xFF;
                     switch (qualities) {
                         case Gen7Constants.noDamageStatusQuality:
                         case Gen7Constants.noDamageStatusAndStatChangeQuality:
@@ -651,6 +686,8 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
                             break;
                         case Gen7Constants.damageStatusQuality:
                             moves[i].statusMoveType = StatusMoveType.DAMAGE;
+                            break;
+                        default:
                             break;
                     }
                 }
@@ -927,18 +964,96 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
         byte[][] movesData = Mini.UnpackMini(moveGarc.files.get(0).get(0), "WD");
         for (int i = 1; i <= moveCount; i++) {
             byte[] moveData = movesData[i];
-            moveData[2] = Gen7Constants.moveCategoryToByte(moves[i].category);
-            moveData[3] = (byte) moves[i].power;
             moveData[0] = Gen7Constants.typeToByte(moves[i].type);
-            int hitratio = (int) Math.round(moves[i].hitratio);
-            if (hitratio < 0) {
-                hitratio = 0;
-            }
-            if (hitratio > 101) {
-                hitratio = 100;
-            }
+            moveData[1] = (byte) clamp(moves[i].categoryQuality, 0, 255);
+            moveData[2] = Gen7Constants.moveCategoryToByte(moves[i].category);
+            moveData[3] = (byte) clamp(moves[i].power, 0, 255);
+
+            int hitratio = clamp((int) Math.round(moves[i].hitratio), 0, 101);
             moveData[4] = (byte) hitratio;
-            moveData[5] = (byte) moves[i].pp;
+            moveData[5] = (byte) clamp(moves[i].pp, 0, 255);
+            moveData[6] = (byte) clampSigned(moves[i].priority, -128, 127);
+
+            int minHits = clamp(moves[i].minHits, 0, 15);
+            int maxHits = clamp(moves[i].maxHits, 0, 15);
+            moveData[7] = (byte) ((maxHits << 4) | minHits);
+
+            writeWord(moveData, 8, clamp(moves[i].statusEffect, 0, 0xFFFF));
+            moveData[10] = (byte) clamp((int) Math.round(moves[i].statusPercentChance), 0, 255);
+            moveData[12] = (byte) clamp(moves[i].minTrapTurns, 0, 255);
+            moveData[13] = (byte) clamp(moves[i].maxTrapTurns, 0, 255);
+            moveData[14] = determineCriticalStageByte(moves[i]);
+            moveData[15] = (byte) clamp((int) Math.round(moves[i].flinchPercentChance), 0, 255);
+            writeWord(moveData, 16, clamp(moves[i].effectIndex, 0, 0xFFFF));
+            moveData[18] = (byte) clampSigned(moves[i].recoilPercent, -128, 127);
+            moveData[19] = (byte) clamp(moves[i].absorbPercent, 0, 255);
+            moveData[20] = (byte) clamp(moves[i].target, 0, 255);
+
+            for (int statChange = 0; statChange < 3; statChange++) {
+                Move.StatChange sc = moves[i].statChanges[statChange];
+                if (sc == null) {
+                    sc = new Move.StatChange();
+                    moves[i].statChanges[statChange] = sc;
+                }
+                int statType = sc.type != null ? sc.type.ordinal() : 0;
+                if (statType < 0 || statType >= StatChangeType.values().length) {
+                    statType = 0;
+                }
+                moveData[21 + statChange] = (byte) statType;
+                moveData[24 + statChange] = (byte) clampSigned(sc.stages, -128, 127);
+                moveData[27 + statChange] = (byte) clamp((int) Math.round(sc.percentChance), 0, 255);
+            }
+
+            int flags = 0;
+            if (moves[i].makesContact) {
+                flags |= 0x0001;
+            }
+            if (moves[i].isChargeMove) {
+                flags |= 0x0002;
+            }
+            if (moves[i].isRechargeMove) {
+                flags |= 0x0004;
+            }
+            if (moves[i].isProtectedFromProtect) {
+                flags |= 0x0008;
+            }
+            if (moves[i].isMagicCoatAffected) {
+                flags |= 0x0010;
+            }
+            if (moves[i].isSnatchAffected) {
+                flags |= 0x0020;
+            }
+            if (moves[i].isMirrorMoveAffected) {
+                flags |= 0x0040;
+            }
+            if (moves[i].isPunchMove) {
+                flags |= 0x0080;
+            }
+            if (moves[i].isSoundMove) {
+                flags |= 0x0100;
+            }
+            if (moves[i].groundedByGravity) {
+                flags |= 0x0200;
+            }
+            if (moves[i].defrostsUser) {
+                flags |= 0x0400;
+            }
+            if (moves[i].hitsNonAdjacent) {
+                flags |= 0x0800;
+            }
+            if (moves[i].isHealingMove) {
+                flags |= 0x1000;
+            }
+            if (moves[i].bypassesSubstitute) {
+                flags |= 0x2000;
+            }
+            if (moves[i].extraFlag1) {
+                flags |= 0x4000;
+            }
+            if (moves[i].extraFlag2) {
+                flags |= 0x8000;
+            }
+            FileFunctions.writeFullInt(moveData, 36, flags);
         }
         try {
             moveGarc.setFile(0, Mini.PackMini(movesData, "WD"));
@@ -946,6 +1061,46 @@ public class Gen7RomHandler extends Abstract3DSRomHandler {
         } catch (IOException e) {
             throw new RomIOException(e);
         }
+    }
+
+    private int clamp(int value, int min, int max) {
+        if (value < min) {
+            return min;
+        }
+        if (value > max) {
+            return max;
+        }
+        return value;
+    }
+
+    private int clampSigned(int value, int min, int max) {
+        if (value < min) {
+            return min;
+        }
+        if (value > max) {
+            return max;
+        }
+        return value;
+    }
+
+    private byte determineCriticalStageByte(Move move) {
+        int stage = clamp(move.criticalStage, 0, 255);
+        if (stage == 0) {
+            switch (move.criticalChance) {
+                case GUARANTEED:
+                    stage = 6;
+                    break;
+                case INCREASED:
+                    stage = 1;
+                    break;
+                case NONE:
+                case NORMAL:
+                default:
+                    stage = 0;
+                    break;
+            }
+        }
+        return (byte) stage;
     }
 
     private void patchFormeReversion() throws IOException {
